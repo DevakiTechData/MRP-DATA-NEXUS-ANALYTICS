@@ -5,6 +5,8 @@ import path from 'path';
 import XLSX from 'xlsx';
 import Papa from 'papaparse';
 import multer from 'multer';
+import jwt from 'jsonwebtoken';
+import fsPromises from 'fs/promises';
 import { fileURLToPath } from 'url';
 
 const PORT = process.env.PORT || 5000;
@@ -16,6 +18,8 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 const CSV_ROOT = path.join(PROJECT_ROOT, 'datanexus-dashboard', 'public');
 const EXCEL_PATH = path.join(DATA_DIR, 'event_inquiries.xlsx');
 const SHEET_NAME = 'Inquiries';
+const JWT_SECRET = process.env.JWT_SECRET || 'datanexus-dev-secret';
+const TOKEN_EXPIRY = process.env.JWT_EXPIRY || '2h';
 
 const HEADER_CONFIG = [
   { key: 'submittedAt', heading: 'Submitted At' },
@@ -252,12 +256,96 @@ const listImageFiles = (categoryId) => {
   });
 };
 
+const loadUsers = async () => {
+  try {
+    const content = await fsPromises.readFile(path.join(DATA_DIR, 'users.json'), 'utf-8');
+    return JSON.parse(content);
+  } catch (error) {
+    console.error('Failed to load users.json', error);
+    return [];
+  }
+};
+
+const findUser = async (username) => {
+  const users = await loadUsers();
+  return users.find((user) => user.username === username);
+};
+
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+const authenticate = (req, res, next) => {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
+
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = payload;
+    return next();
+  } catch (error) {
+    console.error('JWT verification failed', error);
+    return res.status(401).json({ error: 'Invalid or expired token.' });
+  }
+};
+
+const authorize =
+  (...allowedRoles) =>
+  (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+    if (allowedRoles.length > 0 && !allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'You do not have access to this resource.' });
+    }
+    return next();
+  };
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  const { username, password } = req.body ?? {};
+
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required.' });
+  }
+
+  const user = await findUser(username);
+  if (!user || user.password !== password) {
+    return res.status(401).json({ error: 'Invalid credentials.' });
+  }
+
+  const token = jwt.sign(
+    {
+      username: user.username,
+      role: user.role,
+    },
+    JWT_SECRET,
+    { expiresIn: TOKEN_EXPIRY },
+  );
+
+  return res.json({
+    token,
+    user: {
+      username: user.username,
+      role: user.role,
+    },
+  });
+});
+
+app.get('/api/auth/me', authenticate, (req, res) => {
+  res.json({
+    user: {
+      username: req.user.username,
+      role: req.user.role,
+    },
+  });
 });
 
 app.post('/api/inquiries', (req, res) => {
@@ -307,7 +395,7 @@ app.post('/api/inquiries', (req, res) => {
   }
 });
 
-app.get('/api/admin/images', (req, res) => {
+app.get('/api/admin/images', authenticate, authorize('admin'), (req, res) => {
   try {
     const { category } = req.query ?? {};
 
@@ -343,7 +431,12 @@ app.get('/api/admin/images', (req, res) => {
   }
 });
 
-app.post('/api/admin/images', upload.single('image'), (req, res) => {
+app.post(
+  '/api/admin/images',
+  authenticate,
+  authorize('admin'),
+  upload.single('image'),
+  (req, res) => {
   try {
     const { category } = req.body ?? {};
     if (!category) {
@@ -376,9 +469,10 @@ app.post('/api/admin/images', upload.single('image'), (req, res) => {
     console.error('Failed to upload image', error);
     res.status(error.status || 500).json({ error: error.message || 'Failed to upload image.' });
   }
-});
+  },
+);
 
-app.delete('/api/admin/images/:category/:filename', (req, res) => {
+app.delete('/api/admin/images/:category/:filename', authenticate, authorize('admin'), (req, res) => {
   try {
     const { category, filename } = req.params;
     const categoryInfo = getImageCategory(category);
@@ -399,7 +493,7 @@ app.delete('/api/admin/images/:category/:filename', (req, res) => {
   }
 });
 
-app.get('/api/admin/tables', (req, res) => {
+app.get('/api/admin/tables', authenticate, authorize('admin'), (req, res) => {
   try {
     const tables = Object.entries(ADMIN_TABLES).map(([id, tableConfig]) => {
       const { columns } = loadTableData(id);
@@ -418,7 +512,7 @@ app.get('/api/admin/tables', (req, res) => {
   }
 });
 
-app.get('/api/admin/tables/:tableId', (req, res) => {
+app.get('/api/admin/tables/:tableId', authenticate, authorize('admin'), (req, res) => {
   try {
     const { tableId } = req.params;
     const { config, columns, rows } = loadTableData(tableId);
@@ -435,7 +529,7 @@ app.get('/api/admin/tables/:tableId', (req, res) => {
   }
 });
 
-app.post('/api/admin/tables/:tableId', (req, res) => {
+app.post('/api/admin/tables/:tableId', authenticate, authorize('admin'), (req, res) => {
   try {
     const { tableId } = req.params;
     const { record } = req.body ?? {};
@@ -464,7 +558,7 @@ app.post('/api/admin/tables/:tableId', (req, res) => {
   }
 });
 
-app.put('/api/admin/tables/:tableId/:recordId', (req, res) => {
+app.put('/api/admin/tables/:tableId/:recordId', authenticate, authorize('admin'), (req, res) => {
   try {
     const { tableId, recordId } = req.params;
     const { record } = req.body ?? {};
@@ -500,7 +594,7 @@ app.put('/api/admin/tables/:tableId/:recordId', (req, res) => {
   }
 });
 
-app.delete('/api/admin/tables/:tableId/:recordId', (req, res) => {
+app.delete('/api/admin/tables/:tableId/:recordId', authenticate, authorize('admin'), (req, res) => {
   try {
     const { tableId, recordId } = req.params;
     const { config, columns, rows } = loadTableData(tableId);
