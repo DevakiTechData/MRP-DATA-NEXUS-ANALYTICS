@@ -1,5 +1,25 @@
 import { useState, useEffect, useMemo } from 'react';
 import { loadAllData } from '../data/loadData';
+import { getAlumniImage, getAlumniImageByIndex } from '../utils/alumniImages';
+import PageHero from '../components/PageHero';
+
+const ENGAGEMENT_HERO_IMAGES = [
+  {
+    src: '/assets/hero/engagement img1.jpeg',
+    alt: 'Alumni networking at SLU engagement event',
+    caption: 'Alumni gatherings that build lifelong professional connections.',
+  },
+  {
+    src: '/assets/hero/engagement img2.jpg',
+    alt: 'Mentorship session between alumni and students',
+    caption: 'Mentorship circles empowering the next generation of Billikens.',
+  },
+  {
+    src: '/assets/hero/Alumni img1.jpg',
+    alt: 'Celebrating alumni success stories',
+    caption: 'Spotlighting alumni achievements across industries worldwide.',
+  },
+];
 
 const AlumniEngagements = () => {
   const [data, setData] = useState(null);
@@ -120,9 +140,24 @@ const AlumniEngagements = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-100 pb-16">
+      <PageHero
+        images={ENGAGEMENT_HERO_IMAGES}
+        eyebrow="Community Stories"
+        title="Celebrate Alumni Engagement"
+        subtitle="Spotlights, mentorship, and lifetime connections"
+        description="Explore the career journeys and engagement stories of our alumni community. See how Billikens mentor, lead, and partner with SLU to elevate the next wave of innovators."
+        actions={[
+          { to: '/', label: 'Back to Home', variant: 'secondary' },
+          { href: '#alumni-stories', label: 'View Stories' },
+        ]}
+        align="center"
+      />
+
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-4xl font-bold text-sluBlue mb-2">🎓 Alumni Engagements</h1>
+        <h1 id="alumni-stories" className="text-4xl font-bold text-sluBlue mb-2">
+          🎓 Alumni Engagements
+        </h1>
         <p className="text-xl text-gray-600 mb-8">
           Discover our alumni community, their achievements, and their continued connection with SLU
         </p>
@@ -157,17 +192,19 @@ const AlumniEngagements = () => {
         <div className="mb-12">
           <h2 className="text-3xl font-bold text-sluBlue mb-6">Alumni Profiles & Success Stories</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {alumniProfiles.slice(0, 12).map((alumni, index) => (
-              <div
-                key={alumni.student_key}
-                className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer border-l-4 border-sluGold"
-                onClick={() => setSelectedAlumni(alumni)}
-              >
+            {alumniProfiles.slice(0, 12).map((alumni, index) => {
+              const profileImage = getAlumniImageByIndex(index);
+              return (
+                <div
+                  key={alumni.student_key}
+                  className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer border-l-4 border-sluGold"
+                  onClick={() => setSelectedAlumni({ ...alumni, image: profileImage })}
+                >
                 <div className="flex items-center mb-4">
                   <img
-                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(alumni.first_name + ' ' + alumni.last_name)}&background=FDB515&color=002F6C&size=80&bold=true`}
+                    src={profileImage}
                     alt={alumni.first_name}
-                    className="w-16 h-16 rounded-full mr-4 border-2 border-sluBlue"
+                    className="w-16 h-16 rounded-full mr-4 border-2 border-sluBlue object-cover"
                   />
                   <div>
                     <h3 className="text-xl font-bold text-sluBlue">
@@ -222,8 +259,9 @@ const AlumniEngagements = () => {
                     </div>
                   </div>
                 )}
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -351,9 +389,9 @@ const AlumniEngagements = () => {
                 >
                   <div className="flex items-start mb-4">
                     <img
-                      src={`https://ui-avatars.com/api/?name=${encodeURIComponent(alumni.first_name + ' ' + alumni.last_name)}&background=002F6C&color=FDB515&size=100&bold=true`}
+                      src={getAlumniImage(alumni.student_key)}
                       alt={alumni.first_name}
-                      className="w-20 h-20 rounded-full mr-4 border-2 border-sluGold"
+                      className="w-20 h-20 rounded-full mr-4 border-2 border-sluGold object-cover"
                     />
                     <div className="flex-1">
                       <h3 className="text-xl font-bold text-sluBlue mb-1">
@@ -404,9 +442,9 @@ const AlumniEngagements = () => {
               <div className="flex justify-between items-start">
                 <div className="flex items-center">
                   <img
-                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(selectedAlumni.first_name + ' ' + selectedAlumni.last_name)}&background=FDB515&color=002F6C&size=120&bold=true`}
+                    src={selectedAlumni.image || getAlumniImage(selectedAlumni.student_key)}
                     alt={selectedAlumni.first_name}
-                    className="w-24 h-24 rounded-full mr-4 border-4 border-sluGold"
+                    className="w-24 h-24 rounded-full mr-4 border-4 border-sluGold object-cover"
                   />
                   <div>
                     <h2 className="text-3xl font-bold">

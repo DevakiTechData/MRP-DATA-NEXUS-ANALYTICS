@@ -8,10 +8,29 @@ import KPICard from '../components/KPICard';
 import ChartCard from '../components/ChartCard';
 import FiltersPanel from '../components/FiltersPanel';
 import InsightsPanel from '../components/InsightsPanel';
-import WorldMap from '../components/WorldMap';
+import USChoropleth from '../components/USChoropleth';
 import { loadAllData } from '../data/loadData';
+import PageHero from '../components/PageHero';
 
 const COLORS = ['#002F6C', '#FDB515', '#4A90E2', '#7ED321', '#F5A623', '#BD10E0', '#50E3C2', '#B8E986', '#9013FE', '#417505'];
+
+const ALUMNI_HERO_IMAGES = [
+  {
+    src: '/assets/hero/alumni banner img1.jpg',
+    alt: 'SLU alumni celebrating together outdoors',
+    caption: 'Celebrating SLU alumni achievements around the globe.',
+  },
+  {
+    src: '/assets/hero/Alumni img5.jpg',
+    alt: 'Alumni mentoring current students',
+    caption: 'Mentors guiding the next generation of Billiken leaders.',
+  },
+  {
+    src: '/assets/hero/alumni img2.jpg',
+    alt: 'Networking reception between SLU alumni',
+    caption: 'Expanding professional networks with fellow alumni.',
+  },
+];
 
 const AlumniDashboard = () => {
   const [data, setData] = useState(null);
@@ -31,7 +50,7 @@ const AlumniDashboard = () => {
   const processedData = useMemo(() => {
     if (!data) return null;
 
-    const { students, alumniEngagement, events, dates } = data;
+    const { students, alumniEngagement, events, dates, employers } = data;
 
     // Filter data based on selected filters
     let filteredEngagement = [...alumniEngagement];
@@ -182,6 +201,22 @@ const AlumniDashboard = () => {
       value
     }));
 
+    // Alumni distribution by employer state
+    const employersByKey = {};
+    employers.forEach(emp => {
+      employersByKey[emp.employer_key] = emp;
+    });
+
+    const alumniByState = {};
+    filteredEngagement.forEach(e => {
+      const employer = employersByKey[e.employer_key];
+      if (!employer) return;
+      const stateCode = (employer.hq_state || '').trim().toUpperCase();
+      if (stateCode.length === 2) {
+        alumniByState[stateCode] = (alumniByState[stateCode] || 0) + 1;
+      }
+    });
+
     // Event Feedback Leaderboard
     const eventFeedback = {};
     filteredEngagement.forEach(e => {
@@ -216,7 +251,8 @@ const AlumniDashboard = () => {
       topProgramsData,
       feedbackOverTimeData,
       visaStatusData,
-      eventFeedbackData
+      eventFeedbackData,
+      alumniByState
     };
   }, [data, filters]);
 
@@ -365,9 +401,23 @@ const AlumniDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-100 pb-16">
+      <PageHero
+        images={ALUMNI_HERO_IMAGES}
+        eyebrow="Alumni Insights"
+        title="Amplifying Alumni Impact"
+        subtitle="Measure engagement, growth, and global reach"
+        description="Track the KPIs that matter most to our alumni community. Visualize engagement trends, geographic reach, hiring outcomes, and program-level momentum to power strategic decisions."
+        actions={[
+          { to: '/', label: 'Back to Home', variant: 'secondary' },
+          { href: '#alumni-kpis', label: 'Explore KPIs' },
+        ]}
+      />
+
       <div className="container mx-auto px-4 py-6">
-        <h2 className="text-3xl font-bold text-sluBlue mb-6">🎓 Alumni Dashboard</h2>
+        <h2 id="alumni-kpis" className="text-3xl font-bold text-sluBlue mb-6">
+          🎓 Alumni Dashboard
+        </h2>
 
         <FiltersPanel dates={data.dates} onFilterChange={setFilters} />
 
@@ -529,11 +579,10 @@ const AlumniDashboard = () => {
             </div>
           </ChartCard>
 
-          <ChartCard title="Alumni by Country" className="lg:col-span-2" fullHeight={true}>
-            <WorldMap 
-              data={data.students} 
-              title="Alumni Distribution"
-              type="alumni"
+          <ChartCard title="Alumni by State" className="lg:col-span-2" fullHeight={true}>
+            <USChoropleth 
+              data={processedData.alumniByState} 
+              title="Alumni Distribution Across US States"
             />
           </ChartCard>
         </div>

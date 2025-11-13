@@ -47,65 +47,34 @@ npm install
 
 ## Development
 
+### Frontend
+
 ```bash
 npm run dev
 ```
 
 The application will be available at `http://localhost:5173`
 
+### Events Inquiry API (Excel storage)
+
+A lightweight Express server in the `server/` directory appends `/events` enquiries to an Excel workbook.
+
+1. From the repository root, install dependencies and start the API:
+
+```bash
+cd server
+npm install
+npm run dev
+```
+
+2. Submissions are written to `server/data/event_inquiries.xlsx`. The file is created automatically with the correct headers if it does not exist.
+
+3. The frontend targets `http://localhost:5000` by default. If you host the API elsewhere, set `VITE_API_BASE_URL` in a root `.env` file and restart `npm run dev`.
+
+When both the frontend and API are running locally, submitting the Events form will append a new row to the Excel workbook.
+
 ## Build
 
 ```bash
 npm run build
 ```
-
-## Data Source
-
-CSV files are located in the `public/` directory:
-- `dim_contact.csv`
-- `dim_date.csv`
-- `dim_employers.csv`
-- `dim_event.csv`
-- `Dim_Students.csv`
-- `fact_alumni_engagement.csv`
-
-## Project Structure
-
-```
-src/
- ├── pages/
- │    ├── AlumniDashboard.jsx
- │    └── EmployerDashboard.jsx
- ├── components/
- │    ├── KPICard.jsx
- │    ├── ChartCard.jsx
- │    ├── FiltersPanel.jsx
- │    └── Navbar.jsx
- ├── data/
- │    └── loadData.js
- ├── App.jsx
- └── main.jsx
-```
-
-## SLU Branding
-
-The application uses SLU brand colors:
-- **SLU Blue**: `#002F6C`
-- **SLU Gold**: `#FDB515`
-
-## Features
-
-- ✅ Responsive design with TailwindCSS
-- ✅ Date filtering (Year and Month)
-- ✅ Real-time data processing from CSV files
-- ✅ Interactive charts with Recharts
-- ✅ Navigation between dashboards
-- ✅ SLU-branded UI
-
-## Future Enhancements
-
-- [ ] Export to CSV/PDF functionality
-- [ ] Search/filter by college or program
-- [ ] Map visualization for alumni/employer locations
-- [ ] Additional filtering options
-- [ ] Data refresh functionality

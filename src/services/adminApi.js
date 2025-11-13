@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
 
 const handleResponse = async (response) => {
   const data = await response.json().catch(() => null);
@@ -11,63 +11,75 @@ const handleResponse = async (response) => {
   return data;
 };
 
-export const fetchAdminTables = () =>
+const jsonHeaders = (token, extra) => ({
+  'Content-Type': 'application/json',
+  ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  ...(extra || {}),
+});
+
+const authHeaders = (token, extra) => ({
+  ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  ...(extra || {}),
+});
+
+export const fetchAdminTables = (token) =>
   fetch(`${API_BASE_URL}/api/admin/tables`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: jsonHeaders(token),
   }).then(handleResponse);
 
-export const fetchTableData = (tableId) =>
+export const fetchTableData = (tableId, token) =>
   fetch(`${API_BASE_URL}/api/admin/tables/${tableId}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: jsonHeaders(token),
   }).then(handleResponse);
 
-export const createRecord = (tableId, record) =>
+export const createRecord = (tableId, record, token) =>
   fetch(`${API_BASE_URL}/api/admin/tables/${tableId}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: jsonHeaders(token),
     body: JSON.stringify({ record }),
   }).then(handleResponse);
 
-export const updateRecord = (tableId, recordId, record) =>
+export const updateRecord = (tableId, recordId, record, token) =>
   fetch(`${API_BASE_URL}/api/admin/tables/${tableId}/${recordId}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: jsonHeaders(token),
     body: JSON.stringify({ record }),
   }).then(handleResponse);
 
-export const deleteRecord = (tableId, recordId) =>
+export const deleteRecord = (tableId, recordId, token) =>
   fetch(`${API_BASE_URL}/api/admin/tables/${tableId}/${recordId}`, {
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
+    headers: jsonHeaders(token),
   }).then(handleResponse);
 
-export const fetchImageCategories = () =>
+export const fetchImageCategories = (token) =>
   fetch(`${API_BASE_URL}/api/admin/images`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: jsonHeaders(token),
   }).then(handleResponse);
 
-export const fetchImages = (categoryId) =>
+export const fetchImages = (categoryId, token) =>
   fetch(`${API_BASE_URL}/api/admin/images?category=${encodeURIComponent(categoryId)}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: jsonHeaders(token),
   }).then(handleResponse);
 
-export const uploadImage = (categoryId, file) => {
+export const uploadImage = (categoryId, file, token) => {
   const formData = new FormData();
   formData.append('category', categoryId);
   formData.append('image', file);
 
   return fetch(`${API_BASE_URL}/api/admin/images`, {
     method: 'POST',
+    headers: authHeaders(token),
     body: formData,
   }).then(handleResponse);
 };
 
-export const deleteImageFile = (categoryId, filename) =>
+export const deleteImageFile = (categoryId, filename, token) =>
   fetch(
     `${API_BASE_URL}/api/admin/images/${encodeURIComponent(categoryId)}/${encodeURIComponent(filename)}`,
     {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonHeaders(token),
     },
   ).then(handleResponse);
 

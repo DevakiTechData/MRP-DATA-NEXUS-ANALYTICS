@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { loadAllData } from '../data/loadData';
+import { getAlumniImage } from '../utils/alumniImages';
+import { getEmployerImageByIndex } from '../utils/employerImages';
+import HeroSlider from '../components/HeroSlider';
 
 const Home = () => {
   const [data, setData] = useState(null);
@@ -55,7 +58,7 @@ const Home = () => {
               location: `${employer.hq_city || ''}, ${employer.hq_state || ''}`.trim(),
               hires: employer.hires || 0,
               description: `${employer.employer_name} is a leading ${employer.industry || 'company'} with ${employer.hires || 0} hires from SLU.`,
-              image: `https://ui-avatars.com/api/?name=${encodeURIComponent(employer.employer_name || 'Employer')}&background=002F6C&color=fff&size=200`
+              image: getEmployerImageByIndex(idx)
             });
           }
         });
@@ -68,8 +71,8 @@ const Home = () => {
               program: item.student.program_name || 'Graduate Program',
               role: item.job_role || 'Professional',
               engagement: parseFloat(item.engagement_score || 0).toFixed(1),
-              description: `${item.student.first_name || 'Alumni'} graduated from ${item.student.program_name || 'SLU'} and is now working as a ${item.job_role || 'professional'}.`,
-              image: `https://ui-avatars.com/api/?name=${encodeURIComponent(item.student.first_name + ' ' + item.student.last_name || 'Alumni')}&background=FDB515&color=002F6C&size=200`
+              description: `${item.student.first_name || 'Alumni'} graduated from ${item.student.program_name || 'SLU'}.\nNow working as ${item.job_role || 'a professional'}.`,
+              image: getAlumniImage(item.student.student_key)
             });
           }
         });
@@ -85,7 +88,7 @@ const Home = () => {
     if (slideData.length > 0) {
       const interval = setInterval(() => {
         setCurrentSlide((prev) => (prev + 1) % slideData.length);
-      }, 5000); // Change slide every 5 seconds
+      }, 9000); // Change slide every 9 seconds
       return () => clearInterval(interval);
     }
   }, [slideData.length]);
@@ -105,28 +108,28 @@ const Home = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero Section */}
-      <div className="bg-gradient-to-r from-sluBlue to-blue-800 text-white py-20">
-        <div className="container mx-auto px-4 text-center">
-          <h1 className="text-5xl font-bold mb-4">Saint Louis University</h1>
-          <p className="text-2xl mb-8">DataNexus Dashboard</p>
-          <p className="text-xl text-gray-200 max-w-3xl mx-auto">
+      <div className="container mx-auto px-4 pt-6">
+        <HeroSlider interval={9000}>
+          <h1 className="text-4xl md:text-6xl font-bold tracking-tight">Saint Louis University</h1>
+          <p className="text-xl md:text-3xl font-semibold text-white/90">DataNexus Dashboard</p>
+          <p className="text-base md:text-xl text-white/85 max-w-3xl mx-auto">
             Connecting Alumni, Employers, and Opportunities
           </p>
-          <div className="mt-8 flex justify-center gap-4">
+          <div className="mt-6 flex flex-col md:flex-row justify-center gap-3 md:gap-6">
             <Link
               to="/alumni"
-              className="bg-sluGold text-sluBlue px-8 py-3 rounded-lg font-semibold hover:bg-yellow-400 transition-colors"
+              className="bg-sluGold text-sluBlue px-6 md:px-8 py-3 rounded-lg font-semibold hover:bg-yellow-400 transition-colors shadow-lg"
             >
               View Alumni Dashboard
             </Link>
             <Link
               to="/employer"
-              className="bg-white text-sluBlue px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
+              className="bg-white/90 text-sluBlue px-6 md:px-8 py-3 rounded-lg font-semibold hover:bg-white transition-colors shadow-lg"
             >
               View Employer Dashboard
             </Link>
           </div>
-        </div>
+        </HeroSlider>
       </div>
 
       {/* Vision and Mission Section */}
@@ -240,7 +243,7 @@ const Home = () => {
               {/* Slide Container */}
               <div className="overflow-hidden rounded-lg">
                 <div
-                  className="flex transition-transform duration-500 ease-in-out"
+                  className="flex transition-transform duration-700 ease-in-out"
                   style={{ transform: `translateX(-${currentSlide * 100}%)` }}
                 >
                   {slideData.map((slide, index) => (
@@ -271,7 +274,9 @@ const Home = () => {
                           )}
                         </div>
                         <div className="flex items-center">
-                          <p className="text-gray-700 text-lg leading-relaxed">{slide.description}</p>
+                          <p className="whitespace-pre-line text-gray-700 text-base leading-relaxed">
+                            {slide.description}
+                          </p>
                         </div>
                       </div>
                     </div>

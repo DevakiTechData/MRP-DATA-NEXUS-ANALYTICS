@@ -8,10 +8,29 @@ import KPICard from '../components/KPICard';
 import ChartCard from '../components/ChartCard';
 import FiltersPanel from '../components/FiltersPanel';
 import InsightsPanel from '../components/InsightsPanel';
-import WorldMap from '../components/WorldMap';
+import EmployerUSMap from '../components/EmployerUSMap';
 import { loadAllData } from '../data/loadData';
+import PageHero from '../components/PageHero';
 
 const COLORS = ['#002F6C', '#FDB515', '#4A90E2', '#7ED321', '#F5A623', '#BD10E2', '#50E3C2', '#B8E986', '#9013FE', '#417505'];
+
+const EMPLOYER_HERO_IMAGES = [
+  {
+    src: '/assets/hero/engagement img1.jpeg',
+    alt: 'Employers collaborating with SLU students',
+    caption: 'Strong partnerships delivering experiential learning and meaningful hires.',
+  },
+  {
+    src: '/assets/hero/event img2.jpeg',
+    alt: 'Innovation lab with corporate partners',
+    caption: 'Innovation labs co-designed with employers across the Midwest.',
+  },
+  {
+    src: '/assets/employers/Comp img4.jpg',
+    alt: 'Corporate office representing SLU partners',
+    caption: 'National employers investing in SLU talent pipelines.',
+  },
+];
 
 const EmployerDashboard = () => {
   const [data, setData] = useState(null);
@@ -32,6 +51,21 @@ const EmployerDashboard = () => {
     if (!data) return null;
 
     const { employers, alumniEngagement, students, dates } = data;
+
+    const employerLookup = {};
+    const employerCountsByState = {};
+    employers.forEach(emp => {
+      employerLookup[emp.employer_key] = emp;
+      const stateCode = (emp.hq_state || '').trim().toUpperCase();
+      if (stateCode.length === 2) {
+        employerCountsByState[stateCode] = (employerCountsByState[stateCode] || 0) + 1;
+      }
+    });
+
+    const dateLookup = {};
+    dates.forEach(d => {
+      dateLookup[String(d.date_key)] = d;
+    });
 
     // Filter data based on selected filters
     let filteredEngagement = [...alumniEngagement];
@@ -69,7 +103,7 @@ const EmployerDashboard = () => {
     // Top Industry by Hires
     const industryHires = {};
     hiredEngagements.forEach(e => {
-      const employer = employers.find(emp => emp.employer_key === e.employer_key);
+      const employer = employerLookup[e.employer_key];
       if (employer && employer.industry) {
         industryHires[employer.industry] = (industryHires[employer.industry] || 0) + 1;
       }
@@ -86,7 +120,7 @@ const EmployerDashboard = () => {
     // Hires by Employer
     const employerHires = {};
     hiredEngagements.forEach(e => {
-      const employer = employers.find(emp => emp.employer_key === e.employer_key);
+      const employer = employerLookup[e.employer_key];
       if (employer) {
         const name = employer.employer_name || 'Unknown';
         employerHires[name] = (employerHires[name] || 0) + 1;
@@ -136,6 +170,22 @@ const EmployerDashboard = () => {
     const employmentTypeData = Object.entries(employmentType)
       .filter(([_, value]) => value > 0)
       .map(([name, value]) => ({ name, value }));
+
+    // Alumni hires by state (2020-2025)
+    const alumniCountsByState = {};
+    const mapHires = alumniEngagement.filter(e => e.hired_flag === '1' || e.hired_flag === 1);
+    mapHires.forEach(e => {
+      const hireDate = dateLookup[String(e.hire_date_key)];
+      const eventDate = dateLookup[String(e.event_date_key)];
+      const year = hireDate ? Number(hireDate.year) : eventDate ? Number(eventDate.year) : Number(String(e.hire_date_key || e.event_date_key).slice(0, 4));
+      if (!year || year < 2020 || year > 2025) return;
+      const employer = employerLookup[e.employer_key];
+      if (!employer) return;
+      const stateCode = (employer.hq_state || '').trim().toUpperCase();
+      if (stateCode.length === 2) {
+        alumniCountsByState[stateCode] = (alumniCountsByState[stateCode] || 0) + 1;
+      }
+    });
 
     // Top 10 Employers
     const topEmployersData = Object.entries(employerHires)
@@ -207,7 +257,9 @@ const EmployerDashboard = () => {
       topEmployersData,
       employerLocationsData,
       visaHiresData,
-      hiringVsEngagementData
+      hiringVsEngagementData,
+      alumniCountsByState,
+      employerCountsByState
     };
   }, [data, filters]);
 
@@ -364,9 +416,23 @@ const EmployerDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-100 pb-16">
+      <PageHero
+        images={EMPLOYER_HERO_IMAGES}
+        eyebrow="Employer Partnerships"
+        title="Empowering Employer Collaborations"
+        subtitle="Understand hiring momentum and partner engagement"
+        description="Monitor the impact of our corporate alliances. Explore hires, regional presence, industry demand, and program alignment to strengthen strategic partnerships."
+        actions={[
+          { to: '/', label: 'Back to Home', variant: 'secondary' },
+          { href: '#employer-kpis', label: 'Explore KPIs' },
+        ]}
+      />
+
       <div className="container mx-auto px-4 py-6">
-        <h2 className="text-3xl font-bold text-sluBlue mb-6">💼 Employer Dashboard</h2>
+        <h2 id="employer-kpis" className="text-3xl font-bold text-sluBlue mb-6">
+          💼 Employer Dashboard
+        </h2>
 
         <FiltersPanel dates={data.dates} onFilterChange={setFilters} />
 
@@ -549,11 +615,10 @@ const EmployerDashboard = () => {
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="Employer Locations" className="lg:col-span-2" fullHeight={true}>
-            <WorldMap 
-              data={data.employers} 
-              title="Employer Distribution"
-              type="employer"
+          <ChartCard title="Employer Geography (2020-2025)" className="lg:col-span-2" fullHeight={true}>
+            <EmployerUSMap 
+              alumniCounts={processedData.alumniCountsByState}
+              employerCounts={processedData.employerCountsByState}
             />
           </ChartCard>
         </div>

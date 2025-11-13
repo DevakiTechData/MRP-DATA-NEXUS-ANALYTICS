@@ -10,10 +10,12 @@ import {
   uploadImage,
   deleteImageFile,
 } from '../services/adminApi';
+import { useAuth } from '../context/AuthContext.jsx';
 
 const initialStatus = { type: null, message: '' };
 
 const Admin = () => {
+  const { token } = useAuth();
   const [tables, setTables] = useState([]);
   const [selectedTableId, setSelectedTableId] = useState('');
   const [tableMeta, setTableMeta] = useState(null);
@@ -33,14 +35,14 @@ const Admin = () => {
   const [selectedFile, setSelectedFile] = useState(null);
 
   const loadImagesForCategory = async (categoryId) => {
-    if (!categoryId) {
+    if (!categoryId || !token) {
       setImageItems([]);
       return;
     }
     setImageLoading(true);
     setImageStatus(initialStatus);
     try {
-      const data = await fetchImages(categoryId);
+      const data = await fetchImages(categoryId, token);
       setImageItems(data.files ?? []);
     } catch (error) {
       setImageStatus({ type: 'error', message: error.message });
@@ -50,27 +52,30 @@ const Admin = () => {
   };
 
   useEffect(() => {
+    if (!token) {
+      return;
+    }
     const loadTables = async () => {
       try {
-        const list = await fetchAdminTables();
+        const list = await fetchAdminTables(token);
         setTables(list);
         if (list.length > 0) {
-          setSelectedTableId(list[0].id);
+          setSelectedTableId((current) => current || list[0].id);
         }
       } catch (error) {
         setStatus({ type: 'error', message: error.message });
       }
     };
     loadTables();
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     const loadTableData = async () => {
-      if (!selectedTableId) return;
+      if (!selectedTableId || !token) return;
       setLoading(true);
       setStatus(initialStatus);
       try {
-        const data = await fetchTableData(selectedTableId);
+        const data = await fetchTableData(selectedTableId, token);
         setTableMeta(data);
         setRows(data.rows);
       } catch (error) {
@@ -80,16 +85,16 @@ const Admin = () => {
       }
     };
     loadTableData();
-  }, [selectedTableId]);
+  }, [selectedTableId, token]);
 
-useEffect(() => {
-  if (activeTab !== 'images') return undefined;
+  useEffect(() => {
+    if (activeTab !== 'images' || !token) return undefined;
 
   let ignore = false;
   const loadCategories = async () => {
     setImageStatus(initialStatus);
     try {
-      const categories = await fetchImageCategories();
+        const categories = await fetchImageCategories(token);
       if (ignore) return;
       setImageCategories(categories);
       setSelectedImageCategory((current) => {
@@ -113,16 +118,16 @@ useEffect(() => {
   return () => {
     ignore = true;
   };
-}, [activeTab]);
+  }, [activeTab, token]);
 
-useEffect(() => {
-  if (activeTab !== 'images') return;
-  if (!selectedImageCategory) {
-    setImageItems([]);
-    return;
-  }
-  loadImagesForCategory(selectedImageCategory);
-}, [activeTab, selectedImageCategory]);
+  useEffect(() => {
+    if (activeTab !== 'images' || !token) return;
+    if (!selectedImageCategory) {
+      setImageItems([]);
+      return;
+    }
+    loadImagesForCategory(selectedImageCategory);
+  }, [activeTab, selectedImageCategory, token]);
 
   const activeTable = useMemo(
     () => tables.find((table) => table.id === selectedTableId),
@@ -168,6 +173,10 @@ useEffect(() => {
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!formMode || !tableMeta) return;
+    if (!token) {
+      setStatus({ type: 'error', message: 'Authentication token missing. Please sign in again.' });
+      return;
+    }
 
     const trimmedRecord = columns.reduce((acc, column) => {
       const value = formValues[column];
@@ -188,13 +197,13 @@ useEffect(() => {
     setLoading(true);
     try {
       if (formMode === 'add') {
-        await createRecord(selectedTableId, trimmedRecord);
+        await createRecord(selectedTableId, trimmedRecord, token);
         setStatus({ type: 'success', message: 'Record added successfully.' });
       } else if (formMode === 'edit') {
-        await updateRecord(selectedTableId, keyValue, trimmedRecord);
+        await updateRecord(selectedTableId, keyValue, trimmedRecord, token);
         setStatus({ type: 'success', message: 'Record updated successfully.' });
       }
-      const data = await fetchTableData(selectedTableId);
+      const data = await fetchTableData(selectedTableId, token);
       setTableMeta(data);
       setRows(data.rows);
       resetFormState();
@@ -207,6 +216,10 @@ useEffect(() => {
 
   const handleDelete = async (row) => {
     if (!tableMeta) return;
+    if (!token) {
+      setStatus({ type: 'error', message: 'Authentication token missing. Please sign in again.' });
+      return;
+    }
     const keyValue = row[primaryKey];
     const confirmed = window.confirm(
       `Are you sure you want to delete record with ${primaryKey}="${keyValue}"?`,
@@ -215,7 +228,7 @@ useEffect(() => {
     setLoading(true);
     setStatus(initialStatus);
     try {
-      await deleteRecord(selectedTableId, keyValue);
+      await deleteRecord(selectedTableId, keyValue, token);
       setStatus({ type: 'success', message: 'Record deleted successfully.' });
       setRows((prev) => prev.filter((item) => item[primaryKey] !== keyValue));
     } catch (error) {
@@ -240,12 +253,16 @@ useEffect(() => {
       setImageStatus({ type: 'error', message: 'Choose an image file to upload.' });
       return;
     }
+    if (!token) {
+      setImageStatus({ type: 'error', message: 'Authentication token missing. Please sign in again.' });
+      return;
+    }
     const form = event.target;
     setUploading(true);
     try {
-      await uploadImage(selectedImageCategory, selectedFile);
+      await uploadImage(selectedImageCategory, selectedFile, token);
       await loadImagesForCategory(selectedImageCategory);
-      const categories = await fetchImageCategories();
+      const categories = await fetchImageCategories(token);
       setImageCategories(categories);
       setSelectedImageCategory((current) => {
         if (current && categories.some((cat) => cat.id === current)) {
@@ -267,11 +284,15 @@ useEffect(() => {
     if (!selectedImageCategory) return;
     const confirmed = window.confirm(`Delete "${filename}" from ${selectedImageCategory}?`);
     if (!confirmed) return;
+    if (!token) {
+      setImageStatus({ type: 'error', message: 'Authentication token missing. Please sign in again.' });
+      return;
+    }
     setImageStatus(initialStatus);
     try {
-      await deleteImageFile(selectedImageCategory, filename);
+      await deleteImageFile(selectedImageCategory, filename, token);
       await loadImagesForCategory(selectedImageCategory);
-      const categories = await fetchImageCategories();
+      const categories = await fetchImageCategories(token);
       setImageCategories(categories);
       setSelectedImageCategory((current) => {
         if (current && categories.some((cat) => cat.id === current)) {
@@ -284,6 +305,14 @@ useEffect(() => {
       setImageStatus({ type: 'error', message: error.message });
     }
   };
+
+  if (!token) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-slate-500 text-sm">Authenticating session…</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 pb-16">
