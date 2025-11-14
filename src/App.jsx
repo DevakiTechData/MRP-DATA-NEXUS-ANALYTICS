@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import Home from './pages/Home';
@@ -11,6 +11,9 @@ import Contact from './pages/Contact';
 import Admin from './pages/Admin';
 import Login from './pages/Login.jsx';
 import Unauthorized from './pages/Unauthorized.jsx';
+import PredictionsLayout from './pages/Predictions';
+import AlumniPredictions from './pages/Predictions/AlumniPredictions.jsx';
+import EmployerPredictions from './pages/Predictions/EmployerPredictions.jsx';
 import './App.css';
 
 function App() {
@@ -40,6 +43,11 @@ function App() {
 
           <Route element={<ProtectedRoute roles={['admin']} />}>
             <Route path="/admin" element={<Admin />} />
+            <Route path="/predictions" element={<PredictionsLayout />}>
+              <Route index element={<Navigate to="alumni" replace />} />
+              <Route path="alumni" element={<AlumniPredictions />} />
+              <Route path="employers" element={<EmployerPredictions />} />
+            </Route>
           </Route>
         </Routes>
       </div>

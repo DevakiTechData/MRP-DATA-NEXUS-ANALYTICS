@@ -1,12 +1,34 @@
-const ChartCard = ({ title, children, className = "", isTable = false, fullHeight = false }) => {
+const ChartCard = ({
+  title,
+  subtitle,
+  children,
+  className = "",
+  isTable = false,
+  fullHeight = false,
+  contentClassName = "",
+}) => {
+  const baseHeightClass = (() => {
+    if (isTable) {
+      return fullHeight ? "h-full" : "max-h-[320px]";
+    }
+    if (fullHeight) {
+      return "h-full min-h-[360px]";
+    }
+    return "h-[320px]";
+  })();
+
+  const overflowClass = isTable ? "overflow-y-auto" : "";
+  const containerClassNames = [baseHeightClass, overflowClass, "w-full", contentClassName]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div className={`bg-white rounded-lg shadow-md p-6 ${className}`}>
-      <h3 className="text-lg font-semibold text-sluBlue mb-4 border-b-2 border-sluGold pb-2">
-        {title}
-      </h3>
-      <div className={isTable ? "min-h-64 max-h-96" : fullHeight ? "h-full min-h-96" : "h-64"}>
-        {children}
+    <div className={`bg-white rounded-xl shadow-lg border border-slate-100 p-5 ${className}`}>
+      <div className="mb-3 pb-2 border-b border-slate-200">
+        <h3 className="text-base font-semibold text-sluBlue tracking-tight">{title}</h3>
+        {subtitle ? <p className="text-xs text-slate-500 mt-1 leading-relaxed">{subtitle}</p> : null}
       </div>
+      <div className={containerClassNames}>{children}</div>
     </div>
   );
 };

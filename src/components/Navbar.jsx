@@ -19,6 +19,12 @@ const NAV_LINK_GROUPS = [
     ],
   },
   {
+    group: 'Insights',
+    items: [
+      { to: '/predictions/alumni', label: 'Predictive Outlook', roles: ['admin'] },
+    ],
+  },
+  {
     group: 'Connect',
     items: [
       { to: '/contact', label: 'Contact', roles: ['admin', 'alumni', 'employer'] },
