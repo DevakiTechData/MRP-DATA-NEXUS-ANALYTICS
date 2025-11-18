@@ -18,17 +18,23 @@ jobs:
         with:
           node-version: '20'
       - name: Install dependencies
+        working-directory: ./datanexus-dashboard
         run: npm ci
       - name: Build
+        working-directory: ./datanexus-dashboard
         run: npm run build
         env:
+          GITHUB_PAGES: 'true'
+          # If your GitHub Pages URL is username.github.io/datanexus-dashboard/, set this to '/datanexus-dashboard/'
+          # If it's username.github.io/, leave empty or set to '/'
+          GITHUB_PAGES_BASE: ${{ secrets.GITHUB_PAGES_BASE || '/' }}
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'http://localhost:5002' }}
       - name: Setup Pages
         uses: actions/configure-pages@v4
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist'
+          path: './datanexus-dashboard/dist'
   
   deploy:
     environment:

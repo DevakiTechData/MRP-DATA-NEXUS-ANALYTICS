@@ -163,8 +163,8 @@ datanexus-dashboard/
 ## Submission Package (Copy to PDF)
 
 ### 1) Prototype Links
-- **Frontend (React)**: https://<your-5173-url>.app.github.dev
-- **Backend (API)**: https://<your-5002-url>.app.github.dev
+- **Frontend (React)**: https://<your-forwarded-frontend-url>.app.github.dev
+- **Backend (API)**: https://<your-forwarded-backend-url>.app.github.dev
 - **Test Credentials**: 
   - Admin: `admin` / `admin123`
   - Alumni: `alumni` / `alumni123`
@@ -475,24 +475,45 @@ datanexus-dashboard/
 
 ### 5) Local Development Setup
 
-**Backend (Port 5002):**
+**For GitHub Codespaces or Any Cloud Environment:**
+
+**Step 1: Start Backend**
 ```bash
 cd datanexus-dashboard/server
 npm install
-PORT=5002 npm run dev
+npm run dev
 ```
+- Codespaces will automatically forward the port (check the "Ports" tab)
+- Note the forwarded URL (e.g., `https://your-codespace-5000.app.github.dev`)
 
-**Frontend (Port 5173):**
+**Step 2: Start Frontend**
 ```bash
 cd datanexus-dashboard
-echo "VITE_API_BASE_URL=http://localhost:5002" > .env
 npm install
-npm run dev -- --port 5173
+# Replace with your actual backend forwarded URL from Step 1
+echo "VITE_API_BASE_URL=https://your-codespace-5000.app.github.dev" > .env
+npm run dev
+```
+- Codespaces will automatically forward the frontend port
+- Access the app via the forwarded URL shown in the "Ports" tab
+
+**For Local Development (macOS/Windows/Linux):**
+```bash
+# Backend
+cd datanexus-dashboard/server
+npm install
+npm run dev  # Uses process.env.PORT or defaults to 5002
+
+# Frontend (in a new terminal)
+cd datanexus-dashboard
+npm install
+echo "VITE_API_BASE_URL=http://localhost:5002" > .env
+npm run dev  # Uses default port 5173
 ```
 
 **Access:**
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:5002
+- Frontend: Check the terminal output or Codespaces "Ports" tab for the URL
+- Backend API: Check the terminal output or Codespaces "Ports" tab for the URL
 
 ---
 
@@ -815,3 +836,4 @@ This section identifies the key features of DataNexus and which screens demonstr
 **Technology Stack**: React 18 (frontend), Express.js (backend API), PapaParse (CSV I/O), Recharts (visualizations), JWT (authentication), Multer (file uploads).
 
 **Architecture Reference**: See `README.md` sections 1-3 for complete architecture, analytics, and data schema documentation.
+

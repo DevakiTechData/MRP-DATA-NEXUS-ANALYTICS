@@ -263,9 +263,20 @@ npm install
 ```
 
 ### 2. Configure Environment Variables
+
+**For GitHub Codespaces:**
+1. Start the backend first (see Step 3 below)
+2. Check the "Ports" tab in Codespaces to see the forwarded backend URL
+3. Create `datanexus-dashboard/.env` with the forwarded URL:
+   ```
+   VITE_API_BASE_URL=https://your-codespace-XXXX.app.github.dev
+   ```
+   (Replace `XXXX` with the actual port number shown in Codespaces)
+
+**For Local Development:**
 Create `.env` files if you need to override defaults:
 ```
-# server/.env
+# server/.env (optional - defaults to 5002)
 PORT=5002
 JWT_SECRET=change-me
 JWT_EXPIRY=4h
@@ -273,17 +284,36 @@ JWT_EXPIRY=4h
 # datanexus-dashboard/.env
 VITE_API_BASE_URL=http://localhost:5002
 ```
-> Ports 5000/5001 can be occupied by macOS Control Center. Port 5002 avoids conflicts.
+> Ports 5000/5001 can be occupied by macOS Control Center. The server defaults to 5002 if PORT is not set.
 
 ### 3. Start Servers
+
+**For GitHub Codespaces:**
 ```bash
 # Terminal 1 – Express API
-datanexus-dashboard/server> PORT=5002 npm run dev
+cd datanexus-dashboard/server
+npm run dev
+# Codespaces will automatically forward the port - check the "Ports" tab
 
 # Terminal 2 – Vite frontend
-datanexus-dashboard> npm run dev -- --port 5173
+cd datanexus-dashboard
+npm run dev
+# Codespaces will automatically forward the port - check the "Ports" tab
+# Make sure .env has the correct backend forwarded URL
 ```
-Visit `http://localhost:5173`. The frontend reads `VITE_API_BASE_URL` for API calls.
+
+**For Local Development:**
+```bash
+# Terminal 1 – Express API
+cd datanexus-dashboard/server
+npm run dev  # Uses process.env.PORT or defaults to 5002
+
+# Terminal 2 – Vite frontend
+cd datanexus-dashboard
+npm run dev  # Uses default port 5173
+```
+
+Visit the URL shown in your terminal or Codespaces "Ports" tab. The frontend reads `VITE_API_BASE_URL` for API calls.
 
 ### 4. Linting
 ```bash
@@ -361,7 +391,8 @@ Seeded credentials live in `server/data/users.json` for local testing:
 ## 9. Troubleshooting & FAQ
 | Issue | Resolution |
 | ----- | ---------- |
-| `EADDRINUSE` on port 5000/5001 | Stop macOS Control Center (`lsof -i :5000`) or switch to port 5002 (update `.env` + Vite proxy). |
+| `EADDRINUSE` on port 5000/5001 | Stop macOS Control Center (`lsof -i :5000`) or let the server use a different port (it defaults to 5002). |
+| Application not running in Codespaces | Ensure both backend and frontend are started. Check the "Ports" tab for forwarded URLs. Set `VITE_API_BASE_URL` in `.env` to match the backend forwarded URL. |
 | Assistant says “Still learning that query” | Question is outside the curated knowledge base; add an entry in `AssistantChat.jsx` to extend responses. |
 | Images not appearing in gallery | Ensure the uploaded file sits in the correct `public/assets/<category>` folder and the gallery item references the `/assets/...` path. |
 | CSV edits not persisting | Run the backend with write permissions; confirm the process user can modify files under `datanexus-dashboard/public`. |

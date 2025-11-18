@@ -4,14 +4,18 @@ import fs from 'fs';
 import path from 'path';
 import Papa from 'papaparse';
 import multer from 'multer';
+import jwt from 'jsonwebtoken';
 import { fileURLToPath } from 'url';
 
 // Default to 5002 to avoid conflicts with macOS Control Center (uses 5000/5001).
 const PORT = process.env.PORT || 5002;
+const JWT_SECRET = process.env.JWT_SECRET || 'change-me-to-a-secure-random-string';
+const JWT_EXPIRY = process.env.JWT_EXPIRY || '2h';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DATA_DIR = path.join(__dirname, 'data');
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const CSV_ROOT = path.join(PROJECT_ROOT, 'public');
 const CSV_PATH = path.join(DATA_DIR, 'event_inquiries.csv');
@@ -477,12 +481,94 @@ const listImageFiles = (categoryId) => {
   });
 };
 
+// Load users from JSON file
+const loadUsers = () => {
+  if (!fs.existsSync(USERS_FILE)) {
+    return [];
+  }
+  try {
+    const fileContents = fs.readFileSync(USERS_FILE, 'utf8');
+    return JSON.parse(fileContents);
+  } catch (error) {
+    console.error('Failed to load users', error);
+    return [];
+  }
+};
+
+// JWT authentication middleware
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+  if (!token) {
+    return res.status(401).json({ error: 'Access token required.' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid or expired token.' });
+    }
+    req.user = user;
+    next();
+  });
+};
+
+// Role-based authorization middleware
+const authorizeRole = (...allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Insufficient permissions.' });
+    }
+    next();
+  };
+};
+
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
+});
+
+// Authentication endpoint
+app.post('/api/auth/login', (req, res) => {
+  try {
+    const { username, password } = req.body ?? {};
+
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required.' });
+    }
+
+    const users = loadUsers();
+    const user = users.find(
+      (u) => u.username === username && u.password === password
+    );
+
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials.' });
+    }
+
+    const token = jwt.sign(
+      { username: user.username, role: user.role },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRY }
+    );
+
+    res.json({
+      token,
+      user: {
+        username: user.username,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    console.error('Login failed', error);
+    res.status(500).json({ error: 'Login failed.' });
+  }
 });
 
 app.post('/api/inquiries', (req, res) => {
@@ -532,7 +618,8 @@ app.post('/api/inquiries', (req, res) => {
   }
 });
 
-app.get('/api/admin/images', (req, res) => {
+// Protected admin routes - require authentication
+app.get('/api/admin/images', authenticateToken, authorizeRole('admin'), (req, res) => {
   try {
     const { category } = req.query ?? {};
 
@@ -568,7 +655,7 @@ app.get('/api/admin/images', (req, res) => {
   }
 });
 
-app.post('/api/admin/images', upload.single('image'), (req, res) => {
+app.post('/api/admin/images', authenticateToken, authorizeRole('admin'), upload.single('image'), (req, res) => {
   try {
     const { category } = req.body ?? {};
     if (!category) {
@@ -603,7 +690,7 @@ app.post('/api/admin/images', upload.single('image'), (req, res) => {
   }
 });
 
-app.delete('/api/admin/images/:category/:filename', (req, res) => {
+app.delete('/api/admin/images/:category/:filename', authenticateToken, authorizeRole('admin'), (req, res) => {
   try {
     const { category, filename } = req.params;
     const categoryInfo = getImageCategory(category);
@@ -646,7 +733,7 @@ app.post('/api/assistant/query', (req, res) => {
   }
 });
 
-app.get('/api/admin/tables', (req, res) => {
+app.get('/api/admin/tables', authenticateToken, authorizeRole('admin'), (req, res) => {
   try {
     const tables = Object.entries(ADMIN_TABLES).map(([id, tableConfig]) => {
       const { columns } = loadTableData(id);
@@ -665,7 +752,7 @@ app.get('/api/admin/tables', (req, res) => {
   }
 });
 
-app.get('/api/admin/tables/:tableId', (req, res) => {
+app.get('/api/admin/tables/:tableId', authenticateToken, authorizeRole('admin'), (req, res) => {
   try {
     const { tableId } = req.params;
     const { config, columns, rows } = loadTableData(tableId);
@@ -682,7 +769,7 @@ app.get('/api/admin/tables/:tableId', (req, res) => {
   }
 });
 
-app.post('/api/admin/tables/:tableId', (req, res) => {
+app.post('/api/admin/tables/:tableId', authenticateToken, authorizeRole('admin'), (req, res) => {
   try {
     const { tableId } = req.params;
     const { record } = req.body ?? {};
@@ -711,7 +798,7 @@ app.post('/api/admin/tables/:tableId', (req, res) => {
   }
 });
 
-app.put('/api/admin/tables/:tableId/:recordId', (req, res) => {
+app.put('/api/admin/tables/:tableId/:recordId', authenticateToken, authorizeRole('admin'), (req, res) => {
   try {
     const { tableId, recordId } = req.params;
     const { record } = req.body ?? {};
@@ -747,7 +834,7 @@ app.put('/api/admin/tables/:tableId/:recordId', (req, res) => {
   }
 });
 
-app.delete('/api/admin/tables/:tableId/:recordId', (req, res) => {
+app.delete('/api/admin/tables/:tableId/:recordId', authenticateToken, authorizeRole('admin'), (req, res) => {
   try {
     const { tableId, recordId } = req.params;
     const { config, columns, rows } = loadTableData(tableId);

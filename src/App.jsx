@@ -17,8 +17,12 @@ import EmployerPredictions from './pages/Predictions/EmployerPredictions.jsx';
 import './App.css';
 
 function App() {
+  // Set basename for GitHub Pages deployment
+  // If deployed to root, use '/'. If to subdirectory, use '/repo-name/'
+  const basename = import.meta.env.BASE_URL || '/';
+  
   return (
-    <Router>
+    <Router basename={basename}>
       <div className="App">
         <Navbar />
         <Routes>
