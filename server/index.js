@@ -570,22 +570,34 @@ const app = express();
 
 // CORS configuration - allow all origins (including Codespaces)
 // Handle preflight OPTIONS requests explicitly
-app.options('*', cors({
-  origin: true,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-}));
+app.options('*', (req, res) => {
+  const origin = req.headers.origin;
+  console.log(`OPTIONS preflight request from origin: ${origin}`);
+  res.header('Access-Control-Allow-Origin', origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400'); // 24 hours
+  res.sendStatus(204);
+});
 
 // Apply CORS to all routes
-app.use(cors({
-  origin: true, // Allow all origins (including Codespaces subdomains)
-  credentials: true, // Allow credentials (cookies, authorization headers)
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  preflightContinue: false,
-  optionsSuccessStatus: 204,
-}));
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  console.log(`${req.method} ${req.path} - Origin: ${origin}`);
+  
+  // Allow all origins
+  if (origin) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  next();
+});
 
 app.use(express.json());
 
