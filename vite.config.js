@@ -18,11 +18,15 @@ export default defineConfig({
   plugins: [react()],
   base: getBase(),
   server: {
-    proxy: {
-      '/api': {
-        target: 'http://localhost:5002',
-        changeOrigin: true,
-      },
-    },
+    // Only use proxy in local development (when VITE_API_BASE_URL is not set or is localhost)
+    // In Codespaces, the frontend will use VITE_API_BASE_URL directly from .env
+    proxy: process.env.VITE_API_BASE_URL && !process.env.VITE_API_BASE_URL.includes('localhost')
+      ? {} // Disable proxy in Codespaces - use direct API calls
+      : {
+          '/api': {
+            target: 'http://localhost:5002',
+            changeOrigin: true,
+          },
+        },
   },
 })
