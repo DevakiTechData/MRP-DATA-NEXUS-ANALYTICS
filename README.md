@@ -1420,13 +1420,29 @@ npm install
 ### 2. Configure Environment Variables
 
 **For GitHub Codespaces:**
-1. Start the backend first (see Step 3 below)
-2. Check the "Ports" tab in Codespaces to see the forwarded backend URL
-3. Create `datanexus-dashboard/.env` with the forwarded URL:
+1. **Install dependencies with legacy peer deps:**
+   ```bash
+   npm install --legacy-peer-deps
+   cd server && npm install && cd ..
    ```
-   VITE_API_BASE_URL=https://your-codespace-XXXX.app.github.dev
+   > **Note:** `--legacy-peer-deps` is required because `react-simple-maps@3.0.0` doesn't officially support React 19 yet.
+
+2. **Start the backend server first** (see Step 3 below)
+3. **Make port 5002 Public:**
+   - Go to "Ports" tab in Codespaces
+   - Right-click port 5002 → "Change Port Visibility" → "Public"
+   - This is **critical** for CORS to work
+4. **Check the "Ports" tab** to see the forwarded backend URL
+5. **Create `datanexus-dashboard/.env`** with the forwarded URL:
    ```
-   (Replace `XXXX` with the actual port number shown in Codespaces)
+   VITE_API_BASE_URL=https://your-codespace-XXXX-5002.app.github.dev
+   ```
+   (Replace `your-codespace-XXXX-5002` with the actual URL shown in Codespaces Ports tab)
+   
+   **Example:**
+   ```
+   VITE_API_BASE_URL=https://zany-space-adventure-7vpjv4qvj7972wq5q-5002.app.github.dev
+   ```
 
 **For Local Development:**
 Create `.env` files if you need to override defaults:
@@ -1507,7 +1523,7 @@ app.use(cors({ origin: ['https://app.datanexus.ai'] }));
 
 ---
 
-## 7. Security, Roles & Credentials
+## 8. Security, Roles & Credentials
 
 ### 7.1 Role Matrix
 | Role | Description | Key Permissions |
@@ -1528,7 +1544,7 @@ Seeded credentials live in `server/data/users.json` for local testing:
 
 ---
 
-## 8. Update History
+## 9. Update History
 | Date | Area | Summary |
 | ---- | ---- | ------- |
 | Week 1 | Project recovery | Restored React app styling, re-linked assets, fixed login errors. |
@@ -1545,7 +1561,7 @@ Seeded credentials live in `server/data/users.json` for local testing:
 
 ---
 
-## 9. Troubleshooting & FAQ
+## 10. Troubleshooting & FAQ
 | Issue | Resolution |
 | ----- | ---------- |
 | `EADDRINUSE` on port 5000/5001 | Stop macOS Control Center (`lsof -i :5000`) or let the server use a different port (it defaults to 5002). |
