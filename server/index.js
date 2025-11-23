@@ -567,13 +567,26 @@ const authorizeRole = (...allowedRoles) => {
 };
 
 const app = express();
+
 // CORS configuration - allow all origins (including Codespaces)
+// Handle preflight OPTIONS requests explicitly
+app.options('*', cors({
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+}));
+
+// Apply CORS to all routes
 app.use(cors({
-  origin: true, // Allow all origins
+  origin: true, // Allow all origins (including Codespaces subdomains)
   credentials: true, // Allow credentials (cookies, authorization headers)
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204,
 }));
+
 app.use(express.json());
 
 app.get('/api/health', (req, res) => {
