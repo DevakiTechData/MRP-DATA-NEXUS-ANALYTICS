@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext.jsx';
+import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
   const { login, isAuthenticated, error, clearError, loading } = useAuth();
@@ -50,8 +50,35 @@ const Login = () => {
       <div className="relative min-h-screen flex items-center justify-center px-4">
         <div className="max-w-md w-full mx-auto bg-white/95 border border-slate-200 rounded-3xl shadow-2xl p-8 space-y-6 backdrop-blur-sm">
           <div className="text-center space-y-2">
-            <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-sluBlue text-white text-xl font-bold shadow-lg shadow-sluBlue/40">
-              SLU
+            <div className="flex justify-center">
+              <img
+                src="/assets/slu-logo.png"
+                alt="Saint Louis University Logo"
+                className="h-24 w-24 mx-auto object-contain drop-shadow-lg"
+                style={{
+                  imageRendering: 'auto',
+                  WebkitImageRendering: 'auto',
+                  maxWidth: '96px',
+                  maxHeight: '96px',
+                  minWidth: '96px',
+                  minHeight: '96px',
+                  filter: 'brightness(1.1) contrast(1.05)',
+                }}
+                onError={(e) => {
+                  // Fallback to styled text logo if image fails to load
+                  e.target.style.display = 'none';
+                  if (e.target.nextSibling) {
+                    e.target.nextSibling.style.display = 'flex';
+                  }
+                }}
+              />
+              {/* Fallback text logo if image fails */}
+              <div
+                className="hidden h-24 w-24 items-center justify-center rounded-full bg-sluBlue text-white font-bold text-2xl shadow-lg shadow-sluBlue/40 mx-auto"
+                style={{ display: 'none' }}
+              >
+                SLU
+              </div>
             </div>
             <h1 className="text-2xl font-semibold text-sluBlue">DataNexus Login</h1>
             <p className="text-sm text-slate-500">

@@ -83,3 +83,79 @@ export const deleteImageFile = (categoryId, filename, token) =>
     },
   ).then(handleResponse);
 
+export const fetchAlumniSubmissions = (type, token) =>
+  fetch(`${API_BASE_URL}/api/admin/alumni-submissions?type=${encodeURIComponent(type || 'all')}`, {
+    headers: jsonHeaders(token),
+  }).then(handleResponse);
+
+export const updateSubmissionStatus = (type, id, status, token) =>
+  fetch(`${API_BASE_URL}/api/admin/alumni-submissions/${encodeURIComponent(type)}/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: jsonHeaders(token),
+    body: JSON.stringify({ status }),
+  }).then(handleResponse);
+
+export const fetchEmployerSubmissions = (type, token) =>
+  fetch(`${API_BASE_URL}/api/admin/employer-portal-data?type=${encodeURIComponent(type)}`, {
+    headers: jsonHeaders(token),
+  }).then(handleResponse);
+
+export const updateEmployerEventParticipation = (id, status, token) =>
+  fetch(`${API_BASE_URL}/api/admin/employer-event-participation/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: jsonHeaders(token),
+    body: JSON.stringify({ participation_status: status }),
+  }).then(handleResponse);
+
+export const approveAlumniFeedback = (id, approved, token) =>
+  fetch(`${API_BASE_URL}/api/admin/alumni-feedback/${encodeURIComponent(id)}/approve`, {
+    method: 'PATCH',
+    headers: jsonHeaders(token),
+    body: JSON.stringify({ approved }),
+  }).then(handleResponse);
+
+export const deleteAlumniFeedback = (id, token) =>
+  fetch(`${API_BASE_URL}/api/admin/alumni-feedback/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: jsonHeaders(token),
+  }).then(handleResponse);
+
+export const fetchConnectRequests = (token) =>
+  fetch(`${API_BASE_URL}/api/admin/connect-requests`, {
+    headers: jsonHeaders(token),
+  }).then(handleResponse);
+
+export const updateConnectRequest = (id, updates, token) =>
+  fetch(`${API_BASE_URL}/api/admin/connect-requests/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: jsonHeaders(token),
+    body: JSON.stringify(updates),
+  }).then(handleResponse);
+
+export const deleteConnectRequest = (id, token) =>
+  fetch(`${API_BASE_URL}/api/admin/connect-requests/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: jsonHeaders(token),
+  }).then(handleResponse);
+
+export const updateAlumniSubmission = (type, id, updates, token) =>
+  fetch(`${API_BASE_URL}/api/admin/alumni-submissions/${encodeURIComponent(type)}/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: jsonHeaders(token),
+    body: JSON.stringify(updates),
+  }).then(handleResponse);
+
+export const updateEmployerFeedback = (id, updates, token) =>
+  fetch(`${API_BASE_URL}/api/admin/alumni-feedback/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: jsonHeaders(token),
+    body: JSON.stringify(updates),
+  }).then(handleResponse);
+
+export const updateEmployerEventParticipationFull = (id, updates, token) =>
+  fetch(`${API_BASE_URL}/api/admin/employer-event-participation/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: jsonHeaders(token),
+    body: JSON.stringify(updates),
+  }).then(handleResponse);
+

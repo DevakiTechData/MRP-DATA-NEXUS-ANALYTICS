@@ -9,12 +9,12 @@ const ChartCard = ({
 }) => {
   const baseHeightClass = (() => {
     if (isTable) {
-      return fullHeight ? "h-full" : "max-h-[320px]";
+      return fullHeight ? "h-full" : "min-h-[400px]";
     }
     if (fullHeight) {
-      return "h-full min-h-[360px]";
+      return "h-full min-h-[560px]";
     }
-    return "h-[320px]";
+    return "min-h-[560px]";
   })();
 
   const overflowClass = isTable ? "overflow-y-auto" : "";
@@ -23,10 +23,10 @@ const ChartCard = ({
     .join(" ");
 
   return (
-    <div className={`bg-white rounded-xl shadow-lg border border-slate-100 p-5 ${className}`}>
-      <div className="mb-3 pb-2 border-b border-slate-200">
-        <h3 className="text-base font-semibold text-sluBlue tracking-tight">{title}</h3>
-        {subtitle ? <p className="text-xs text-slate-500 mt-1 leading-relaxed">{subtitle}</p> : null}
+    <div className={`bg-gradient-to-br from-white via-blue-50/50 to-blue-50/30 rounded-xl shadow-md border border-blue-300/60 p-6 ${className}`}>
+      <div className="mb-4 pb-3 border-b border-blue-300/40">
+        <h3 className="text-base font-semibold text-slate-800 tracking-tight">{title}</h3>
+        {subtitle ? <p className="text-xs text-slate-600 mt-1 leading-relaxed">{subtitle}</p> : null}
       </div>
       <div className={containerClassNames}>{children}</div>
     </div>

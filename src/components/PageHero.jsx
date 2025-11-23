@@ -28,7 +28,8 @@ const PageHero = ({
 
   return (
     <div className="container mx-auto px-4 pt-6">
-      <HeroSlider interval={interval} images={images}>
+      <div className="h-[450px] md:h-[550px]">
+        <HeroSlider interval={interval} images={images}>
         <div className={`flex flex-col gap-2 md:gap-3 ${overlayAlignment}`}>
           {eyebrow && (
             <span className="text-xs md:text-sm uppercase tracking-[0.45em] text-sluGold drop-shadow">
@@ -41,7 +42,8 @@ const PageHero = ({
             </h1>
           )}
         </div>
-      </HeroSlider>
+        </HeroSlider>
+      </div>
       {(subtitle || description || actions.length > 0) && (
         <div className={`mt-6 flex flex-col gap-4 ${infoAlignment}`}>
           {subtitle && (

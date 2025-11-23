@@ -999,3 +999,4 @@ student_key,student_slu_id,first_name,last_name,gender,date_of_birth,email,phone
 998,SLU00998,First998,Last998,Female,1983-07-31,student998@slu.edu,+1-314-555-0998,Kenya,Citizen,0,DA,MS Data Analytics,2022,Summer,Summer,2022,3.42,https://linkedin.com/in/student998,Boston
 999,SLU00999,First999,Last999,Female,1983-07-30,student999@slu.edu,+1-314-555-0999,Mexico,F1,1,ST,MS Statistics,2023,Fall,Fall,2023,3.43,https://linkedin.com/in/student999,Phoenix
 1000,SLU01000,First1000,Last1000,Female,1983-07-29,student1000@slu.edu,+1-314-555-1000,India,GreenCard,0,CS,MS Computer Science,2024,Spring,Spring,2024,3.44,https://linkedin.com/in/student1000,St. Louis
+1001,SLU1001,DEVAKI,BATHALAPALLI,,,,,,,,,,,,,,,,

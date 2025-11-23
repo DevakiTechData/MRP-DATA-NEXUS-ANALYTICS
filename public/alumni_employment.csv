@@ -1,0 +1,20 @@
+id,employer_key,alumni_id,alumni_name,graduation_year,program,job_title,start_date,location,status
+1,1,1,First1 Last1,2021,MS Information Systems,Data Analyst,2022-01-15,St. Louis MO,Verified
+2,1,7,First7 Last7,2021,MS Statistics,Data Scientist,2022-03-20,Chicago IL,Verified
+3,1,13,First13 Last13,2021,MS Business Analytics,Business Analyst,2022-05-10,St. Louis MO,Verified
+4,2,2,First2 Last2,2022,MS Artificial Intelligence,AI Engineer,2023-02-01,Mountain View CA,Verified
+5,2,8,First8 Last8,2022,MS Computer Science,Software Engineer,2023-04-15,Mountain View CA,Verified
+6,2,14,First14 Last14,2022,MS Data Analytics,Analytics Engineer,2023-06-01,Mountain View CA,Pending
+7,3,3,First3 Last3,2023,MS Machine Learning,ML Engineer,2024-01-10,Austin TX,Verified
+8,3,9,First9 Last9,2023,MS Information Systems,Systems Analyst,2024-03-05,Austin TX,Verified
+9,3,15,First15 Last15,2023,MS Statistics,Statistician,2024-05-20,Austin TX,Verified
+10,4,4,First4 Last4,2024,MS Cyber Security,Security Analyst,2024-08-01,New York NY,Verified
+11,4,10,First10 Last10,2024,MS Artificial Intelligence,AI Researcher,2024-09-15,New York NY,Pending
+12,4,16,First16 Last16,2024,MS Computer Science,Software Developer,2024-10-01,New York NY,Verified
+13,5,5,First5 Last5,2025,MS Business Analytics,Analytics Consultant,2025-01-20,St. Louis MO,Pending
+14,5,11,First11 Last11,2025,MS Machine Learning,ML Scientist,2025-02-10,St. Louis MO,Pending
+15,5,17,First17 Last17,2025,MS Information Systems,IT Analyst,2025-03-01,St. Louis MO,Pending
+16,1,6,First6 Last6,2020,MS Data Analytics,Data Engineer,2021-06-15,Chicago IL,Verified
+17,2,12,First12 Last12,2020,MS Cyber Security,Security Engineer,2021-08-20,Mountain View CA,Verified
+18,3,18,First18 Last18,2020,MS Artificial Intelligence,AI Developer,2021-10-05,Austin TX,Verified
+

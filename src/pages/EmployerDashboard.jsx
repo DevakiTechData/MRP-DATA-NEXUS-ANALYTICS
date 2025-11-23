@@ -1,18 +1,114 @@
 import { useState, useEffect, useMemo } from 'react';
+import GalleryFooter from '../components/GalleryFooter';
 import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  ComposedChart, FunnelChart, Funnel, LabelList, ScatterChart, Scatter, ZAxis
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  ComposedChart,
+  LabelList,
 } from 'recharts';
 import KPICard from '../components/KPICard';
 import ChartCard from '../components/ChartCard';
-import FiltersPanel from '../components/FiltersPanel';
-import InsightsPanel from '../components/InsightsPanel';
-import EmployerUSMap from '../components/EmployerUSMap';
-import { loadAllData } from '../data/loadData';
 import PageHero from '../components/PageHero';
+import InfoTooltip from '../components/InfoTooltip';
+import { loadAllData } from '../data/loadData';
+import {
+  calculateActiveEmployers,
+  calculateAvgEmployerRating,
+  calculateHiringConversionRate,
+  calculateEmployerEngagementScores,
+  calculateEmployerParticipationTrend,
+  calculateIndustryDistribution,
+  calculateTopHiringEmployers,
+  calculateOpportunitiesVsHires,
+  calculateAlumniEmployedPerEmployer,
+  calculateTechnicalStrengthByYear,
+  calculateHiringFunnel,
+  getAlumniEmployedAtPartners,
+  getEmployersWithRecentFeedback,
+  getEngagementScorecardByEmployer,
+} from '../utils/metrics';
+import { getEmployerSLUPredictions } from '../utils/employerPredictions';
+import { CHART_COLORS } from '../utils/constants';
 
-const COLORS = ['#002F6C', '#FDB515', '#4A90E2', '#7ED321', '#F5A623', '#BD10E2', '#50E3C2', '#B8E986', '#9013FE', '#417505'];
+// Custom Tooltip Components
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-slate-900 border border-slate-700 rounded-lg shadow-xl p-4 min-w-[180px]">
+        <p className="text-white font-semibold mb-3 text-sm border-b border-slate-700 pb-2">
+          {label}
+        </p>
+        <div className="space-y-2">
+          {payload.map((entry, index) => {
+            const value = typeof entry.value === 'number' 
+              ? entry.value.toLocaleString() 
+              : entry.value;
+            return (
+              <div key={index} className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="w-3 h-3 rounded-full flex-shrink-0" 
+                    style={{ backgroundColor: entry.color }}
+                  />
+                  <span className="text-slate-300 text-xs">{entry.name}:</span>
+                </div>
+                <span className="text-white font-bold text-sm">
+                  {value}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
+const CustomBarTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-slate-900 border border-slate-700 rounded-lg shadow-xl p-4 min-w-[180px]">
+        <p className="text-white font-semibold mb-3 text-sm border-b border-slate-700 pb-2">
+          {label}
+        </p>
+        <div className="space-y-2">
+          {payload.map((entry, index) => {
+            const value = typeof entry.value === 'number' 
+              ? entry.value.toLocaleString() 
+              : entry.value;
+            return (
+              <div key={index} className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="w-3 h-3 rounded-full flex-shrink-0" 
+                    style={{ backgroundColor: entry.color }}
+                  />
+                  <span className="text-slate-300 text-xs">{entry.name}:</span>
+                </div>
+                <span className="text-white font-bold text-sm">
+                  {value}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
 
 const EMPLOYER_HERO_IMAGES = [
   {
@@ -35,663 +131,282 @@ const EMPLOYER_HERO_IMAGES = [
 const EmployerDashboard = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({ year: '', month: '' });
+  const [showAnalysisSummary, setShowAnalysisSummary] = useState(false);
+  
+  // Filter state
+  const [filters, setFilters] = useState({
+    year: '',
+    industry: '',
+    location: '',
+    employerSize: '',
+    program: '',
+  });
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const loadedData = await loadAllData();
-      setData(loadedData);
-      setLoading(false);
+      try {
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Data loading timeout after 30 seconds')), 30000);
+        });
+        
+        const loadedData = await Promise.race([
+          loadAllData(),
+          timeoutPromise
+        ]);
+        
+        setData(loadedData);
+      } catch (error) {
+        console.error('Error loading data:', error);
+        // Set empty data structure on error
+        setData({
+          students: [],
+          alumniEngagement: [],
+          dates: [],
+          employers: [],
+          events: [],
+          contacts: [],
+          alumniEmployment: [],
+          employerFeedback: [],
+        });
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, []);
 
-  const processedData = useMemo(() => {
+  // Filter data based on active filters
+  const filteredData = useMemo(() => {
     if (!data) return null;
 
-    const { employers, alumniEngagement, students, dates } = data;
-
-    const studentLookup = students.reduce((acc, student) => {
-      acc[String(student.student_key)] = student;
-      return acc;
-    }, {});
-
-    const dateLookup = dates.reduce((acc, date) => {
-      acc[String(date.date_key)] = date;
-      return acc;
-    }, {});
-
-    const employerLookup = {};
-    const employerCountsByState = {};
-    employers.forEach(emp => {
-      employerLookup[emp.employer_key] = emp;
-      const stateCode = (emp.hq_state || '').trim().toUpperCase();
-      if (stateCode.length === 2) {
-        employerCountsByState[stateCode] = (employerCountsByState[stateCode] || 0) + 1;
-      }
-    });
-
-    // Filter data based on selected filters
+    let { employers, alumniEngagement, dates, alumniEmployment, employerFeedback, students } = data;
+    let filteredEmployers = [...employers];
     let filteredEngagement = [...alumniEngagement];
-    let filteredDates = [...dates];
+    let filteredEmployment = [...(alumniEmployment || [])];
+    let filteredFeedback = [...(employerFeedback || [])];
 
+    // Filter by year
     if (filters.year) {
-      filteredDates = filteredDates.filter(d => String(d.year) === String(filters.year));
-      const dateKeys = new Set(filteredDates.map(d => String(d.date_key)));
-      filteredEngagement = filteredEngagement.filter(e => dateKeys.has(String(e.hire_date_key)));
-    }
-
-    if (filters.month) {
-      filteredDates = filteredDates.filter(d => String(d.month_name) === String(filters.month));
-      const dateKeys = new Set(filteredDates.map(d => String(d.date_key)));
-      filteredEngagement = filteredEngagement.filter(e => dateKeys.has(String(e.hire_date_key)));
-    }
-
-    // Calculate KPIs
-    const distinctEmployers = new Set(employers.map(e => e.employer_key));
-    const activeEmployers = distinctEmployers.size;
-
-    const hiredEngagements = filteredEngagement.filter(e => e.hired_flag === '1' || e.hired_flag === 1);
-    const totalHires = hiredEngagements.length;
-
-    // Calculate SLU event hires (hires that came through SLU university events)
-    const sluEventHires = hiredEngagements.filter(e => 
-      e.participated_university_event_flag === '1' || e.participated_university_event_flag === 1
-    ).length;
-    
-    // Calculate SLU event hire percentage
-    const sluEventHirePercent = totalHires > 0 
-      ? Math.round((sluEventHires / totalHires) * 100)
-      : 0;
-
-    // Top Industry by Hires
-    const industryHires = {};
-    hiredEngagements.forEach(e => {
-      const employer = employerLookup[e.employer_key];
-      if (employer && employer.industry) {
-        industryHires[employer.industry] = (industryHires[employer.industry] || 0) + 1;
-      }
-    });
-    const totalIndustryHires = Object.values(industryHires).reduce((sum, count) => sum + count, 0);
-    const hiresByIndustryData = Object.entries(industryHires)
-      .map(([name, value]) => ({
-        name,
-        value,
-        percent: totalIndustryHires > 0 ? Number(((value / totalIndustryHires) * 100).toFixed(1)) : 0,
-      }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10);
-    const topIndustryCategory = hiresByIndustryData[0] || { name: 'N/A', value: 0, percent: 0 };
-    const topIndustry = topIndustryCategory.name || 'N/A';
-
-    // Hires by Employer
-    const employerHires = {};
-    hiredEngagements.forEach(e => {
-      const employer = employerLookup[e.employer_key];
-      if (employer) {
-        const name = employer.employer_name || 'Unknown';
-        employerHires[name] = (employerHires[name] || 0) + 1;
-      }
-    });
-    const hiresByEmployerData = Object.entries(employerHires)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 15);
-
-    // Hiring Trend
-    const hiringTrend = {};
-    hiredEngagements.forEach(e => {
-      const date = dates.find(d => String(d.date_key) === String(e.hire_date_key));
-      if (date) {
-        const key = date.year;
-        hiringTrend[key] = (hiringTrend[key] || 0) + 1;
-      }
-    });
-    const hiringTrendData = Object.entries(hiringTrend)
-      .map(([year, count]) => ({ year, hires: count }))
-      .sort((a, b) => a.year.localeCompare(b.year));
-
-    let hiringTrendSummary = null;
-    if (hiringTrendData.length >= 2) {
-      const start = hiringTrendData[0].hires;
-      const latest = hiringTrendData[hiringTrendData.length - 1].hires;
-      const change = start !== 0 ? Number((((latest - start) / start) * 100).toFixed(1)) : 0;
-      const peak = hiringTrendData.reduce((prev, current) => (current.hires > prev.hires ? current : prev), hiringTrendData[0]);
-      hiringTrendSummary = {
-        start,
-        latest,
-        change,
-        peakYear: peak.year,
-        peakValue: peak.hires,
-      };
-    }
-
-    // Hires by Degree Level
-    const degreeHires = {};
-    filteredEngagement.forEach(e => {
-      const student = studentLookup[String(e.student_key)];
-      if (student && student.program_name) {
-        const degreeLevel = student.program_name.includes('MS') ? 'Master\'s' : 
-                          student.program_name.includes('PhD') ? 'PhD' : 
-                          student.program_name.includes('BS') ? 'Bachelor\'s' : 'Other';
-        degreeHires[degreeLevel] = (degreeHires[degreeLevel] || 0) + 1;
-      }
-    });
-    const totalDegreeHires = Object.values(degreeHires).reduce((sum, count) => sum + count, 0);
-    const hiresByDegreeData = Object.entries(degreeHires)
-      .map(([name, value]) => ({
-        name,
-        value,
-        percent: totalDegreeHires > 0 ? Number(((value / totalDegreeHires) * 100).toFixed(1)) : 0,
-      }))
-      .sort((a, b) => b.value - a.value);
-    const topDegreeCategory = hiresByDegreeData[0] || { name: 'N/A', value: 0, percent: 0 };
-
-    // Employment Type (Full-Time, Internship, Contract)
-    // Since we don't have explicit employment type, we'll infer from job_role or use a placeholder
-    const employmentType = {
-      'Full-Time': hiredEngagements.filter(e => e.job_role && !e.job_role.toLowerCase().includes('intern')).length,
-      'Internship': hiredEngagements.filter(e => e.job_role && e.job_role.toLowerCase().includes('intern')).length,
-      'Contract': hiredEngagements.filter(e => e.job_role && e.job_role.toLowerCase().includes('contract')).length
-    };
-    const totalEmploymentType = Object.values(employmentType).reduce((sum, count) => sum + count, 0);
-    const employmentTypeData = Object.entries(employmentType)
-      .filter((entry) => entry[1] > 0)
-      .map(([name, value]) => ({
-        name,
-        value,
-        percent: totalEmploymentType > 0 ? Number(((value / totalEmploymentType) * 100).toFixed(1)) : 0,
-      }));
-
-    // Alumni hires by state (2020-2025)
-    const alumniCountsByState = {};
-    const mapHires = alumniEngagement.filter(e => e.hired_flag === '1' || e.hired_flag === 1);
-    mapHires.forEach(e => {
-      const hireDate = dateLookup[String(e.hire_date_key)];
-      const eventDate = dateLookup[String(e.event_date_key)];
-      const year = hireDate ? Number(hireDate.year) : eventDate ? Number(eventDate.year) : Number(String(e.hire_date_key || e.event_date_key).slice(0, 4));
-      if (!year || year < 2020 || year > 2025) return;
-      const employer = employerLookup[e.employer_key];
-      if (!employer) return;
-      const stateCode = (employer.hq_state || '').trim().toUpperCase();
-      if (stateCode.length === 2) {
-        alumniCountsByState[stateCode] = (alumniCountsByState[stateCode] || 0) + 1;
-      }
-    });
-
-    // Top 10 Employers
-    const topEmployersData = Object.entries(employerHires)
-      .map(([name, value]) => ({
-        name,
-        hires: value,
-        percent: totalHires > 0 ? Number(((value / totalHires) * 100).toFixed(1)) : 0,
-      }))
-      .sort((a, b) => b.hires - a.hires)
-      .slice(0, 10);
-
-    // Employer Locations
-    const employerLocations = {};
-    employers.forEach(emp => {
-      const location = emp.hq_city && emp.hq_state 
-        ? `${emp.hq_city}, ${emp.hq_state}`
-        : emp.hq_city || emp.hq_state || 'Unknown';
-      employerLocations[location] = (employerLocations[location] || 0) + 1;
-    });
-    const totalLocationsCount = Object.values(employerLocations).reduce((sum, count) => sum + count, 0);
-    const employerLocationsData = Object.entries(employerLocations)
-      .map(([name, value]) => ({
-        name,
-        value,
-        percent: totalLocationsCount > 0 ? Number(((value / totalLocationsCount) * 100).toFixed(1)) : 0,
-      }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 15);
-    const topLocationCategory = employerLocationsData[0] || { name: 'N/A', value: 0, percent: 0 };
-
-    // Visa Type of Hires
-    const visaHires = {};
-    hiredEngagements.forEach(e => {
-      const student = studentLookup[String(e.student_key)];
-      if (student && student.visa_status) {
-        const visa = student.visa_status;
-        visaHires[visa] = (visaHires[visa] || 0) + 1;
-      }
-    });
-    const visaHiresData = Object.entries(visaHires).map(([name, value]) => ({
-      name,
-      value
-    }));
-
-    // Hiring vs Engagement Trend
-    const engagementTrend = {};
-    filteredEngagement.forEach(e => {
-      const date = dateLookup[String(e.event_date_key)];
-      if (date) {
-        const key = date.year;
-        if (!engagementTrend[key]) {
-          engagementTrend[key] = { engagement: 0, count: 0 };
+      const yearFilter = String(filters.year);
+      const dateLookup = dates.reduce((acc, d) => {
+        if (String(d.year) === yearFilter) {
+          acc[String(d.date_key)] = d;
         }
-        engagementTrend[key].engagement += parseFloat(e.engagement_score || 0);
-        engagementTrend[key].count += 1;
-      }
-    });
-    const hiringVsEngagementData = Object.keys({ ...hiringTrend, ...engagementTrend })
-      .sort()
-      .map(year => ({
-        year,
-        hires: hiringTrend[year] || 0,
-        engagement: engagementTrend[year] 
-          ? (engagementTrend[year].engagement / engagementTrend[year].count).toFixed(2)
-          : 0
-      }));
-
-    // Pipeline waterfall (applications -> interviews -> offers -> hires)
-    const pipelineTotals = filteredEngagement.reduce(
-      (totals, engagement) => {
-        totals.applications += Number(engagement.applications_submitted || 0);
-        totals.interviews += Number(engagement.interviews_count || 0);
-        totals.offers += Number(engagement.job_offers_count || 0);
-        if (['1', 1].includes(engagement.hired_flag)) {
-          totals.hires += 1;
-        }
-        return totals;
-      },
-      { applications: 0, interviews: 0, offers: 0, hires: 0 }
-    );
-
-    const pipelineBaseline = pipelineTotals.applications || 1;
-    const funnelStagesOrder = [
-      { stage: 'Applications', count: pipelineTotals.applications },
-      { stage: 'Interviews', count: pipelineTotals.interviews },
-      { stage: 'Offers', count: pipelineTotals.offers },
-      { stage: 'Hires', count: pipelineTotals.hires },
-    ];
-
-    const pipelineFunnelData = funnelStagesOrder.map((stage, index) => {
-      const currentCount = stage.count;
-      const previousCount = index === 0 ? currentCount : funnelStagesOrder[index - 1].count || 1;
-      const stageConversion = index === 0 ? 100 : previousCount > 0 ? (currentCount / previousCount) * 100 : 0;
-      const cumulativeConversion = pipelineBaseline > 0 ? (currentCount / pipelineBaseline) * 100 : 0;
-
-      return {
-        stage: stage.stage,
-        count: currentCount,
-        rate: Number(cumulativeConversion.toFixed(1)),
-        rateLabel: `${Number(cumulativeConversion.toFixed(1))}%`,
-        countLabel: currentCount.toLocaleString(),
-        stageLabel: stage.stage,
-        stageConversion: Number(stageConversion.toFixed(1)),
-        stageConversionLabel: index === 0 ? 'Baseline' : `${Number(stageConversion.toFixed(1))}% of prior stage`,
-      };
-    });
-
-    const pipelineDropStage = pipelineFunnelData.slice(1).reduce((prev, current) =>
-      (current.stageConversion < prev.stageConversion ? current : prev),
-      pipelineFunnelData[1] || null,
-    );
-    const pipelineFinalStage = pipelineFunnelData[pipelineFunnelData.length - 1] || null;
-
-    // Employer health scoring
-    const eventDateValues = filteredEngagement
-      .map((engagement) => {
-        const dateObj = dateLookup[String(engagement.event_date_key)];
-        return dateObj ? new Date(dateObj.full_date).getTime() : null;
-      })
-      .filter((value) => value !== null);
-
-    const maxEventTimestamp = eventDateValues.length > 0 ? Math.max(...eventDateValues) : Date.now();
-    const rollingWindowStart = (() => {
-      const windowStart = new Date(maxEventTimestamp);
-      windowStart.setFullYear(windowStart.getFullYear() - 1);
-      return windowStart;
-    })();
-
-    const employerHealth = new Map();
-    filteredEngagement.forEach((engagement) => {
-      const employer = employerLookup[engagement.employer_key];
-      if (!employer) return;
-      if (!employerHealth.has(employer.employer_key)) {
-        employerHealth.set(employer.employer_key, {
-          employerKey: employer.employer_key,
-          employerName: employer.employer_name || 'Unknown',
-          totalHires: 0,
-          recentHires: 0,
-          recentEvents: 0,
-          engagementScoreTotal: 0,
-          engagementScoreCount: 0,
-          totalApplications: 0,
-          totalInterviews: 0,
-        });
-      }
-
-      const record = employerHealth.get(employer.employer_key);
-      const eventDate = dateLookup[String(engagement.event_date_key)];
-      const eventDateObj = eventDate ? new Date(eventDate.full_date) : null;
-      if (eventDateObj && eventDateObj >= rollingWindowStart) {
-        record.recentEvents += 1;
-      }
-
-      const hireDate = dateLookup[String(engagement.hire_date_key)];
-      const hireDateObj = hireDate ? new Date(hireDate.full_date) : null;
-      if (['1', 1].includes(engagement.hired_flag)) {
-        record.totalHires += 1;
-        if (hireDateObj && hireDateObj >= rollingWindowStart) {
-          record.recentHires += 1;
-        }
-      }
-
-      record.totalApplications += Number(engagement.applications_submitted || 0);
-      record.totalInterviews += Number(engagement.interviews_count || 0);
-
-      if (engagement.engagement_score) {
-        record.engagementScoreTotal += parseFloat(engagement.engagement_score || 0);
-        record.engagementScoreCount += 1;
-      }
-    });
-
-    const employerHealthScores = Array.from(employerHealth.values())
-      .map((entry) => {
-        const avgEngagement = entry.engagementScoreCount > 0 ? entry.engagementScoreTotal / entry.engagementScoreCount : 0;
-        const normalizedTotalHires = Math.min(entry.totalHires / 10, 1);
-        const normalizedRecentHires = Math.min(entry.recentHires / 5, 1);
-        const normalizedRecentEvents = Math.min(entry.recentEvents / 8, 1);
-        const normalizedEngagement = Math.min(avgEngagement / 10, 1);
-        const healthScore = Number(
-          (
-            normalizedTotalHires * 25 +
-            normalizedRecentHires * 30 +
-            normalizedRecentEvents * 20 +
-            normalizedEngagement * 25
-          ).toFixed(1)
-        );
-
-        return {
-          employerKey: entry.employerKey,
-          employerName: entry.employerName,
-          totalHires: entry.totalHires,
-          recentHires: entry.recentHires,
-          recentEvents: entry.recentEvents,
-          avgEngagementScore: Number(avgEngagement.toFixed(2)),
-          healthScore,
-          bubbleSize: Math.max(entry.totalHires, 1),
-        };
-      })
-      .sort((a, b) => b.healthScore - a.healthScore)
-      .slice(0, 10);
-
-    // Diversity hiring mix (gender and visa)
-    const genderApplicants = students.reduce((acc, student) => {
-      const gender = student.gender || 'Unknown';
-      acc[gender] = (acc[gender] || 0) + 1;
       return acc;
     }, {});
+      const validDateKeys = new Set(Object.keys(dateLookup));
+      filteredEngagement = filteredEngagement.filter(e => {
+        const dateKey = String(e.event_date_key || e.hire_date_key || '');
+        return validDateKeys.has(dateKey);
+      });
+    }
 
-    const visaApplicants = students.reduce((acc, student) => {
-      const visa = student.visa_status || 'Unknown';
-      acc[visa] = (acc[visa] || 0) + 1;
-      return acc;
-    }, {});
+    // Filter by industry
+    if (filters.industry) {
+      filteredEmployers = filteredEmployers.filter(e => 
+        (e.industry || '').toLowerCase().includes(filters.industry.toLowerCase())
+      );
+      const industryEmployerIds = new Set(filteredEmployers.map(e => String(e.employer_key || e.employer_id)));
+      filteredEngagement = filteredEngagement.filter(e => {
+        const employerId = String(e.employer_key || e.employer_id);
+        return industryEmployerIds.has(employerId);
+      });
+      filteredEmployment = filteredEmployment.filter(e => {
+        const employerId = String(e.employer_key || e.employer_id);
+        return industryEmployerIds.has(employerId);
+      });
+    }
 
-    const genderHires = {};
-    const visaHiresMix = {};
-    hiredEngagements.forEach((engagement) => {
-      const student = studentLookup[String(engagement.student_key)];
-      if (!student) return;
-      const gender = student.gender || 'Unknown';
-      const visa = student.visa_status || 'Unknown';
-      genderHires[gender] = (genderHires[gender] || 0) + 1;
-      visaHiresMix[visa] = (visaHiresMix[visa] || 0) + 1;
-    });
+    // Filter by location
+    if (filters.location) {
+      filteredEmployers = filteredEmployers.filter(e => {
+        const city = (e.city || '').toLowerCase();
+        const state = (e.state || '').toLowerCase();
+        const locationFilter = filters.location.toLowerCase();
+        return city.includes(locationFilter) || state.includes(locationFilter);
+      });
+      const locationEmployerIds = new Set(filteredEmployers.map(e => String(e.employer_key || e.employer_id)));
+      filteredEngagement = filteredEngagement.filter(e => {
+        const employerId = String(e.employer_key || e.employer_id);
+        return locationEmployerIds.has(employerId);
+      });
+      filteredEmployment = filteredEmployment.filter(e => {
+        const employerId = String(e.employer_key || e.employer_id);
+        return locationEmployerIds.has(employerId);
+      });
+    }
 
-    const diversityByGender = Object.keys(genderApplicants).map((gender) => {
-      const applicants = genderApplicants[gender];
-      const hires = genderHires[gender] || 0;
-      return {
-        category: gender,
-        applicants,
-        hires,
-        hireRate: applicants > 0 ? Number(((hires / applicants) * 100).toFixed(1)) : 0,
-      };
-    });
-
-    const diversityByVisa = Object.keys(visaApplicants).map((visa) => {
-      const applicants = visaApplicants[visa];
-      const hires = visaHiresMix[visa] || 0;
-      return {
-        category: visa,
-        applicants,
-        hires,
-        hireRate: applicants > 0 ? Number(((hires / applicants) * 100).toFixed(1)) : 0,
-      };
-    });
-
-    // Churn risk early warning
-    const churnRiskList = Array.from(employerHealth.values())
-      .map((entry) => {
-        const avgEngagement = entry.engagementScoreCount > 0 ? entry.engagementScoreTotal / entry.engagementScoreCount : 0;
-        let riskScore = 0;
-        if (entry.recentHires === 0) riskScore += 40;
-        else if (entry.recentHires <= 1) riskScore += 25;
-        if (entry.recentEvents === 0) riskScore += 30;
-        else if (entry.recentEvents <= 1) riskScore += 15;
-        if (avgEngagement < 5) riskScore += 20;
-        if (entry.totalApplications < 3) riskScore += 10;
-
-        return {
-          employerKey: entry.employerKey,
-          employerName: entry.employerName,
-          riskScore: Number(riskScore.toFixed(1)),
-          recentHires: entry.recentHires,
-          recentEvents: entry.recentEvents,
-          avgEngagementScore: Number(avgEngagement.toFixed(2)),
-        };
-      })
-      .filter((item) => item.riskScore >= 30)
-      .sort((a, b) => b.riskScore - a.riskScore)
-      .slice(0, 10);
+    // Filter by program (through students)
+    if (filters.program && students) {
+      const programStudents = students.filter(s => 
+        (s.program_name || s.major || '').toLowerCase().includes(filters.program.toLowerCase())
+      );
+      const programStudentIds = new Set(programStudents.map(s => String(s.student_key || s.student_id)));
+      filteredEngagement = filteredEngagement.filter(e => {
+        const studentId = String(e.student_key || e.student_id);
+        return programStudentIds.has(studentId);
+      });
+      filteredEmployment = filteredEmployment.filter(e => {
+        const studentId = String(e.student_key || e.student_id);
+        return programStudentIds.has(studentId);
+      });
+    }
 
     return {
-      activeEmployers,
-      totalHires,
-      sluEventHires,
-      sluEventHirePercent,
-      hiresByIndustryData,
-      topIndustryCategory,
-      topIndustry,
-      hiresByEmployerData,
-      hiringTrendData,
-      hiringTrendSummary,
-      hiresByDegreeData,
-      topDegreeCategory,
-      employmentTypeData,
-      topEmployersData,
-      employerLocationsData,
-      topLocationCategory,
-      visaHiresData,
-      hiringVsEngagementData,
-      alumniCountsByState,
-      employerCountsByState,
-      pipelineFunnelData,
-      pipelineDropStage,
-      pipelineFinalStage,
-      employerHealthScores,
-      diversityByGender,
-      diversityByVisa,
-      churnRiskList,
+      employers: filteredEmployers,
+      alumniEngagement: filteredEngagement,
+      dates,
+      alumniEmployment: filteredEmployment,
+      employerFeedback: filteredFeedback,
+      students,
     };
   }, [data, filters]);
 
-  const renderEmployerHealthTooltip = ({ active, payload }) => {
-    if (!active || !payload || !payload.length) {
-      return null;
+  // Get unique values for filter dropdowns
+  const filterOptions = useMemo(() => {
+    if (!data) return { years: [], industries: [], locations: [], programs: [] };
+
+    const { employers, dates, students } = data;
+    
+    const years = [...new Set(dates.map(d => d.year).filter(Boolean))].sort((a, b) => b - a);
+    const industries = [...new Set(employers.map(e => e.industry).filter(Boolean))].sort();
+    const locations = [...new Set(employers.map(e => e.city || e.state).filter(Boolean))].sort();
+    const programs = [...new Set(students.map(s => s.program_name || s.major).filter(Boolean))].sort();
+
+    return { years, industries, locations, programs };
+  }, [data]);
+
+  const metrics = useMemo(() => {
+    if (!filteredData) return null;
+
+    const { employers, alumniEngagement, dates, alumniEmployment, employerFeedback } = filteredData;
+
+    // Calculate all metrics using utility functions
+    const activeEmployers = calculateActiveEmployers(employers, alumniEngagement);
+    const avgEmployerRating = calculateAvgEmployerRating(employers);
+    const hiringConversion = calculateHiringConversionRate(alumniEngagement);
+    const employerEngagementScores = calculateEmployerEngagementScores(employers, alumniEngagement);
+    const participationTrend = calculateEmployerParticipationTrend(alumniEngagement, dates);
+    const industryDistribution = calculateIndustryDistribution(employers, alumniEngagement);
+    const topHiringEmployers = calculateTopHiringEmployers(employers, alumniEngagement);
+    const opportunitiesVsHires = calculateOpportunitiesVsHires(alumniEngagement, dates);
+    
+    // Additional metrics
+    const alumniEmployedPerEmployer = calculateAlumniEmployedPerEmployer(alumniEmployment || [], employers);
+    const technicalStrengthByYear = calculateTechnicalStrengthByYear(employerFeedback || []);
+    const hiringFunnel = calculateHiringFunnel(alumniEngagement);
+    const alumniEmployedAtPartners = getAlumniEmployedAtPartners(alumniEmployment || []);
+    const employersWithRecentFeedback = getEmployersWithRecentFeedback(employerFeedback || []);
+    const engagementScorecard = getEngagementScorecardByEmployer(employerEngagementScores, 10);
+
+    // Calculate average engagement score
+    const avgEngagementScore = employerEngagementScores.length > 0
+      ? employerEngagementScores.reduce((sum, emp) => sum + emp.engagementScore, 0) / employerEngagementScores.length
+      : 0;
+
+    return {
+      activeEmployers,
+      avgEmployerRating,
+      hiringConversion,
+      avgEngagementScore,
+      alumniEmployedAtPartners,
+      employersWithRecentFeedback,
+      employerEngagementScores,
+      participationTrend,
+      industryDistribution,
+      topHiringEmployers,
+      opportunitiesVsHires,
+      alumniEmployedPerEmployer,
+      technicalStrengthByYear,
+      hiringFunnel,
+      engagementScorecard,
+    };
+  }, [filteredData]);
+
+  // Calculate predictive insights asynchronously after main data loads
+  const [predictiveInsights, setPredictiveInsights] = useState(null);
+  
+  useEffect(() => {
+    if (!data || !data.students || !data.employers || !data.alumniEngagement) {
+      setPredictiveInsights(null);
+      return;
     }
-    const dataPoint = payload[0].payload;
-    return (
-      <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 shadow">
-        <p className="font-semibold text-slate-700">{dataPoint.employerName}</p>
-        <p>Health Score: {dataPoint.healthScore}</p>
-        <p>12-Mo Hires: {dataPoint.recentHires}</p>
-        <p>Recent Events: {dataPoint.recentEvents}</p>
-        <p>Total Hires: {dataPoint.totalHires}</p>
-        <p>Avg Engagement: {dataPoint.avgEngagementScore}</p>
-      </div>
-    );
-  };
-
-  // Calculate insights based on processed data
-  const insights = useMemo(() => {
-    if (!processedData) return [];
-
-    const insightsList = [];
-
-    // SLU Event Hires Insight
-    if (processedData.sluEventHirePercent > 0) {
-      insightsList.push({
-        title: "SLU University Event Impact",
-        description: `${processedData.sluEventHires} hires (${processedData.sluEventHirePercent}% of total) came through SLU university events, demonstrating the value of institutional event programming for placement success.`,
-        recommendation: processedData.sluEventHirePercent > 30
-          ? "Excellent event-driven hiring rate. Continue investing in high-quality university events and expand successful event formats to maximize placement opportunities."
-          : "Increase focus on university-hosted events and career fairs. Strengthen employer participation in SLU events to improve placement rates through institutional channels."
-      });
-    }
-
-    // Industry Concentration Insight
-    if (processedData.hiresByIndustryData.length > 0) {
-      const topIndustry = processedData.topIndustryCategory;
-      insightsList.push({
-        title: "Industry Hiring Concentration",
-        description: `${topIndustry.name} generated ${topIndustry.value.toLocaleString()} hires (${topIndustry.percent}% of total).` +
-          `${topIndustry.percent > 40 ? ' Hiring is heavily concentrated—watch for over-reliance on a single sector.' : ' Mix remains balanced across industries.'}`,
-        recommendation: topIndustry.percent > 40
-          ? "Diversify outreach to emerging industries to avoid concentration risk. Consider targeted events for underrepresented sectors."
-          : "Maintain momentum with high-performing industries while nurturing growth-stage sectors through co-branded initiatives."
-      });
-    }
-
-    // Hiring Trend Insight
-    if (processedData.hiringTrendData.length >= 2) {
-      const recent = processedData.hiringTrendData.slice(-2);
-      const older = processedData.hiringTrendData.slice(0, 2);
-      const recentAvg = recent.reduce((sum, d) => sum + d.hires, 0) / recent.length;
-      const olderAvg = older.reduce((sum, d) => sum + d.hires, 0) / older.length;
-      const trend = recentAvg > olderAvg ? 'increasing' : 'decreasing';
-      const changePercent = Math.abs(((recentAvg - olderAvg) / olderAvg) * 100).toFixed(1);
-      
-      insightsList.push({
-        title: `Hiring Trend: ${trend.charAt(0).toUpperCase() + trend.slice(1)}`,
-        description: `Hires moved from ${processedData.hiringTrendSummary.start} to ${processedData.hiringTrendSummary.latest} year-over-year (${processedData.hiringTrendSummary.change}% change). Peak hiring occurred in ${processedData.hiringTrendSummary.peakYear} with ${processedData.hiringTrendSummary.peakValue} hires.`,
-        recommendation: trend === 'increasing'
-          ? "Capitalize on the positive trend by expanding employer partnerships and increasing outreach to maintain momentum."
-          : "Conduct employer satisfaction surveys, review placement processes, and strengthen career services to reverse the trend."
-      });
-    }
-
-    // Top Employer Insight
-    if (processedData.topEmployersData.length > 0) {
-      const topEmployer = processedData.topEmployersData[0];
-      insightsList.push({
-        title: "Top Hiring Partner",
-        description: `${topEmployer.name} is the leading employer with ${topEmployer.hires} hires, demonstrating a strong partnership and successful placement relationship.`,
-        recommendation: "Maintain and strengthen the relationship with this top employer. Use this partnership as a model for developing similar relationships with other companies."
-      });
-    }
-
-    // Degree Level Hiring Insight
-    if (processedData.hiresByDegreeData.length > 0) {
-      const topDegree = processedData.topDegreeCategory;
-      insightsList.push({
-        title: "Degree Level Hiring Preference",
-        description: `${topDegree.name} degree holders produced ${topDegree.value.toLocaleString()} hires (${topDegree.percent}% of total).`,
-        recommendation: `Promote ${topDegree.name} success stories to employers while designing upskilling tracks for lower-volume degrees to broaden placement outcomes.`
-      });
+    if (data.students.length === 0 || data.employers.length === 0 || data.alumniEngagement.length === 0) {
+      setPredictiveInsights(null);
+      return;
     }
 
-    // Employment Type Insight
-    if (processedData.employmentTypeData.length > 0) {
-      const totalEmployment = processedData.employmentTypeData.reduce((sum, e) => sum + e.value, 0);
-      const employmentBreakdown = processedData.employmentTypeData.map(e => 
-        `${e.name}: ${((e.value / totalEmployment) * 100).toFixed(1)}%`
-      ).join(', ');
-      
-      const fullTime = processedData.employmentTypeData.find(e => e.name === 'Full-Time');
-      const fullTimePercent = fullTime ? ((fullTime.value / totalEmployment) * 100).toFixed(1) : 0;
-      
-      insightsList.push({
-        title: "Employment Type Distribution",
-        description: `Hiring breakdown: ${employmentBreakdown}. ${fullTimePercent}% are full-time positions, indicating strong career outcomes.`,
-        recommendation: fullTimePercent > 70
-          ? "Excellent full-time placement rate. Continue focusing on career-ready skill development and employer relationships."
-          : "Increase emphasis on full-time placement opportunities through enhanced career services and employer partnerships."
-      });
-    }
-
-    // Visa Status Insight
-    if (processedData.visaHiresData.length > 0) {
-      const totalVisaHires = processedData.visaHiresData.reduce((sum, v) => sum + v.value, 0);
-      const visaBreakdown = processedData.visaHiresData.map(v => 
-        `${v.name}: ${((v.value / totalVisaHires) * 100).toFixed(1)}%`
-      ).join(', ');
-      
-      insightsList.push({
-        title: "Visa Status in Hiring",
-        description: `Hiring by visa status: ${visaBreakdown}. This reflects the diversity of placed candidates and employer acceptance of various work authorization types.`,
-        recommendation: "Continue supporting international students with visa-specific career resources. Build relationships with employers who sponsor work visas for international talent."
-      });
-    }
-
-    // Location Insight
-    if (processedData.employerLocationsData.length > 0) {
-      const topLocation = processedData.employerLocationsData[0];
-      insightsList.push({
-        title: "Geographic Distribution",
-        description: `${topLocation.name} has the highest concentration of employer partners (${topLocation.value} employers), indicating strong regional presence.`,
-        recommendation: "Leverage regional strengths while expanding employer networks in other geographic areas to create more diverse opportunities for students."
-      });
-    }
-
-    // Hiring vs Engagement Correlation
-    if (processedData.hiringVsEngagementData.length >= 2) {
-      const correlation = processedData.hiringVsEngagementData.filter(d => 
-        parseFloat(d.engagement) > 0 && d.hires > 0
-      );
-      
-      if (correlation.length > 0) {
-        insightsList.push({
-          title: "Engagement-Hiring Correlation",
-          description: "Data shows a positive correlation between alumni engagement and hiring outcomes. Higher engagement levels correlate with increased hiring activity.",
-          recommendation: "Invest in alumni engagement programs as they directly impact hiring success. Strong alumni networks create valuable employer connections and referral opportunities."
-        });
+    // Calculate predictive insights asynchronously to avoid blocking main render
+    const calculateInsights = async () => {
+      try {
+        const { employers, alumniEmployment, alumniEngagement, events } = data;
+        
+        // Use setTimeout to defer calculation and allow main UI to render first
+        setTimeout(() => {
+          try {
+            const predictions = getEmployerSLUPredictions(employers, alumniEmployment, alumniEngagement, events);
+            setPredictiveInsights(predictions);
+          } catch (error) {
+            console.error('Error calculating predictive insights:', error);
+            setPredictiveInsights(null);
+          }
+        }, 100); // Small delay to let main UI render first
+      } catch (error) {
+        console.error('Error in predictive insights calculation:', error);
+        setPredictiveInsights(null);
       }
-    }
-
-    return insightsList;
-  }, [processedData]);
+    };
+    
+    calculateInsights();
+  }, [data]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-xl text-sluBlue">Loading data...</div>
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-blue-50 via-blue-100 to-blue-50">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-sluBlue mb-4"></div>
+          <div className="text-xl text-sluBlue font-semibold">Loading data...</div>
+          <div className="text-sm text-slate-600 mt-2">Please wait while we fetch the latest analytics</div>
+        </div>
       </div>
     );
   }
 
-  if (!data || !processedData) {
+  if (!data || !metrics) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-xl text-red-600">Error loading data</div>
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-blue-50 via-blue-100 to-blue-50">
+        <div className="text-center max-w-md px-6">
+          <div className="text-4xl mb-4">⚠️</div>
+          <div className="text-xl text-red-600 font-semibold mb-2">Error loading data</div>
+          <div className="text-sm text-slate-600 mb-4">
+            Unable to load dashboard data. Please check:
+          </div>
+          <ul className="text-xs text-slate-600 text-left space-y-1 mb-4">
+            <li>• CSV files are in the public folder</li>
+            <li>• Files are named correctly (Dim_Students.csv, fact_alumni_engagement.csv, etc.)</li>
+            <li>• Browser console for detailed error messages</li>
+          </ul>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-sluBlue text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 pb-16">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-100 to-blue-50 pb-16">
       <PageHero
         images={EMPLOYER_HERO_IMAGES}
-        eyebrow="Employer Partnerships"
-        title="Empowering Employer Collaborations"
-        subtitle="Understand hiring momentum and partner engagement"
-        description="Monitor the impact of our corporate alliances. Explore hires, regional presence, industry demand, and program alignment to strengthen strategic partnerships."
+        eyebrow="Employer Insights"
+        title="Employer Engagement Dashboard"
+        subtitle="Track partnerships, hiring, and employer relationships"
+        description="Measure employer engagement, hiring trends, and partnership strength. Visualize industry distribution, participation trends, and top hiring partners to strengthen career services."
         actions={[
           { to: '/', label: 'Back to Home', variant: 'secondary' },
           { href: '#employer-kpis', label: 'Explore KPIs' },
@@ -699,466 +414,1169 @@ const EmployerDashboard = () => {
       />
 
       <div className="container mx-auto px-4 py-6">
-        <h2 id="employer-kpis" className="text-3xl font-bold text-sluBlue mb-6">
-          💼 Employer Dashboard
+        <div className="mb-6">
+          <h2 id="employer-kpis" className="text-2xl font-bold text-slate-800 mb-2">
+            Employer Engagement Dashboard
         </h2>
+          <p className="text-sm text-slate-600">Comprehensive analytics and insights into employer partnerships and hiring outcomes</p>
+        </div>
 
-        <FiltersPanel dates={data.dates} onFilterChange={setFilters} />
+        {/* FILTERS ROW */}
+        <div className="bg-gradient-to-br from-white via-blue-50/60 to-blue-50/40 rounded-xl shadow-md border border-blue-300/60 p-5 mb-6">
+          <h3 className="text-sm font-semibold text-slate-700 mb-4 uppercase tracking-wide">Filters</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Year</label>
+              <select
+                value={filters.year}
+                onChange={(e) => setFilters({ ...filters, year: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sluBlue focus:ring focus:ring-sluBlue/20"
+              >
+                <option value="">All Years</option>
+                {filterOptions.years.map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Industry</label>
+              <select
+                value={filters.industry}
+                onChange={(e) => setFilters({ ...filters, industry: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sluBlue focus:ring focus:ring-sluBlue/20"
+              >
+                <option value="">All Industries</option>
+                {filterOptions.industries.map(industry => (
+                  <option key={industry} value={industry}>{industry}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Location</label>
+              <select
+                value={filters.location}
+                onChange={(e) => setFilters({ ...filters, location: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sluBlue focus:ring focus:ring-sluBlue/20"
+              >
+                <option value="">All Locations</option>
+                {filterOptions.locations.map(location => (
+                  <option key={location} value={location}>{location}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Program / Cohort</label>
+              <select
+                value={filters.program}
+                onChange={(e) => setFilters({ ...filters, program: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sluBlue focus:ring focus:ring-sluBlue/20"
+              >
+                <option value="">All Programs</option>
+                {filterOptions.programs.map(program => (
+                  <option key={program} value={program}>{program}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Employer Size</label>
+              <select
+                value={filters.employerSize}
+                onChange={(e) => setFilters({ ...filters, employerSize: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sluBlue focus:ring focus:ring-sluBlue/20"
+              >
+                <option value="">All Sizes</option>
+                <option value="small">Small (1-50)</option>
+                <option value="medium">Medium (51-500)</option>
+                <option value="large">Large (500+)</option>
+              </select>
+            </div>
+          </div>
+          {(filters.year || filters.industry || filters.location || filters.program || filters.employerSize) && (
+            <button
+              onClick={() => setFilters({ year: '', industry: '', location: '', program: '', employerSize: '' })}
+              className="mt-4 text-sm text-sluBlue hover:text-blue-700 font-medium"
+            >
+              Clear All Filters
+            </button>
+          )}
+        </div>
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {/* KPI TILES ROW - 6 KPIs */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6 w-full">
           <KPICard
             title="Active Employers"
-            value={processedData.activeEmployers.toLocaleString()}
-            icon="🏢"
+            value={metrics.activeEmployers.toLocaleString()}
+            tooltip="Employers who have participated in events, hired alumni, or engaged with SLU."
+            calculation={{
+              dataSources: ['fact_alumni_engagement.csv'],
+              method: 'Distinct count of employer_key from engagement records where employer has at least one engagement record',
+              formula: 'COUNT(DISTINCT employer_key) WHERE employer_key IS NOT NULL'
+            }}
           />
           <KPICard
-            title="Total Hires"
-            value={processedData.totalHires.toLocaleString()}
-            icon="👔"
+            title="Avg Employer Rating"
+            value={metrics.avgEmployerRating.toFixed(2)}
+            tooltip="Average rating of employers based on their partnership quality and engagement."
+            calculation={{
+              dataSources: ['dim_employers.csv'],
+              method: 'Mean of employer_rating field, filtered for valid ratings (> 0)',
+              formula: 'AVG(employer_rating) WHERE employer_rating IS NOT NULL AND employer_rating > 0'
+            }}
           />
           <KPICard
-            title="SLU Event Hires"
-            value={`${processedData.sluEventHires} (${processedData.sluEventHirePercent}%)`}
-            icon="🎓"
+            title="Hiring Conversion Rate"
+            value={`${metrics.hiringConversion.conversionRate.toFixed(1)}%`}
+            tooltip="Percentage of job opportunities that convert to actual hires."
+            calculation={{
+              dataSources: ['fact_alumni_engagement.csv'],
+              method: 'Count engagement records where hired_flag = \'1\' divided by count where job_offers_count > 0 OR applications_submitted > 0, multiplied by 100',
+              formula: '(COUNT(*) WHERE hired_flag = \'1\') / (COUNT(*) WHERE job_offers_count > 0 OR applications_submitted > 0) × 100'
+            }}
           />
           <KPICard
-            title="Top Industry"
-            value={processedData.topIndustryCategory.name}
-            icon="🏭"
+            title="Avg Engagement Score"
+            value={metrics.avgEngagementScore.toFixed(2)}
+            tooltip="Average composite engagement score across all active employers."
+            calculation={{
+              dataSources: ['fact_alumni_engagement.csv', 'dim_employers.csv'],
+              method: 'Calculate composite score per employer: (Events × 1) + (Students × 0.5) + (Hires × 2), then average across all active employers',
+              formula: 'AVG((eventsCount × 1) + (studentsInteracted × 0.5) + (hires × 2))'
+            }}
+          />
+          <KPICard
+            title="Alumni Employed at Partners"
+            value={metrics.alumniEmployedAtPartners.toLocaleString()}
+            tooltip="Total number of verified SLU alumni currently employed at partner organizations."
+            calculation={{
+              dataSources: ['alumni_employment.csv'],
+              method: 'Distinct count of student_key from employment records where status = \'Verified\'',
+              formula: 'COUNT(DISTINCT student_key) WHERE status = \'Verified\''
+            }}
+          />
+          <KPICard
+            title="Employers with Recent Feedback"
+            value={metrics.employersWithRecentFeedback.toLocaleString()}
+            tooltip="Number of employers who have provided feedback in the last 6 months."
+            calculation={{
+              dataSources: ['employer_alumni_feedback.csv'],
+              method: 'Distinct count of employer_key where feedback is approved OR created within last 6 months',
+              formula: 'COUNT(DISTINCT employer_key) WHERE approved_by_admin = \'1\' OR created_at >= (NOW() - 6 months)'
+            }}
           />
         </div>
 
-        {/* Charts Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6" style={{ gridAutoRows: 'minmax(300px, auto)' }}>
+        {/* KPI Calculations Explanation */}
+        <div className="mb-6 bg-gradient-to-br from-blue-50/50 to-slate-50 rounded-xl border border-blue-200/60 p-4">
+          <details className="group">
+            <summary className="cursor-pointer text-sm font-semibold text-slate-700 hover:text-sluBlue flex items-center gap-2">
+              <span>📊</span>
+              <span>View KPI Calculation Details</span>
+              <span className="text-xs text-slate-500 group-open:hidden">(Click to expand)</span>
+            </summary>
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
+              <div className="bg-white p-3 rounded-lg border border-slate-200">
+                <p className="font-semibold text-slate-800 mb-2">Active Employers</p>
+                <p className="text-slate-600 leading-relaxed">
+                  <strong>Source:</strong> <code className="text-xs bg-slate-100 px-1 rounded">fact_alumni_engagement.csv</code><br/>
+                  <strong>Method:</strong> Distinct count of <code className="text-xs bg-slate-100 px-1 rounded">employer_key</code> where employer has at least one engagement record
+                </p>
+              </div>
+              <div className="bg-white p-3 rounded-lg border border-slate-200">
+                <p className="font-semibold text-slate-800 mb-2">Avg Employer Rating</p>
+                <p className="text-slate-600 leading-relaxed">
+                  <strong>Source:</strong> <code className="text-xs bg-slate-100 px-1 rounded">dim_employers.csv</code><br/>
+                  <strong>Method:</strong> Mean of <code className="text-xs bg-slate-100 px-1 rounded">employer_rating</code> field (filtered for valid ratings &gt; 0)
+                </p>
+              </div>
+              <div className="bg-white p-3 rounded-lg border border-slate-200">
+                <p className="font-semibold text-slate-800 mb-2">Hiring Conversion Rate</p>
+                <p className="text-slate-600 leading-relaxed">
+                  <strong>Source:</strong> <code className="text-xs bg-slate-100 px-1 rounded">fact_alumni_engagement.csv</code><br/>
+                  <strong>Method:</strong> (Total Hires / Total Opportunities) × 100<br/>
+                  <strong>Hires:</strong> Count where <code className="text-xs bg-slate-100 px-1 rounded">hired_flag = '1'</code><br/>
+                  <strong>Opportunities:</strong> Count where <code className="text-xs bg-slate-100 px-1 rounded">job_offers_count</code> &gt; 0 OR <code className="text-xs bg-slate-100 px-1 rounded">applications_submitted</code> &gt; 0
+                </p>
+              </div>
+              <div className="bg-white p-3 rounded-lg border border-slate-200">
+                <p className="font-semibold text-slate-800 mb-2">Avg Engagement Score</p>
+                <p className="text-slate-600 leading-relaxed">
+                  <strong>Source:</strong> <code className="text-xs bg-slate-100 px-1 rounded">dim_employers.csv</code>, <code className="text-xs bg-slate-100 px-1 rounded">fact_alumni_engagement.csv</code><br/>
+                  <strong>Formula:</strong> (Events × 1) + (Students × 0.5) + (Hires × 2)<br/>
+                  <strong>Method:</strong> Calculate score per employer, then average across all active employers
+                </p>
+              </div>
+              <div className="bg-white p-3 rounded-lg border border-slate-200">
+                <p className="font-semibold text-slate-800 mb-2">Alumni Employed at Partners</p>
+                <p className="text-slate-600 leading-relaxed">
+                  <strong>Source:</strong> <code className="text-xs bg-slate-100 px-1 rounded">alumni_employment.csv</code><br/>
+                  <strong>Method:</strong> Distinct count of <code className="text-xs bg-slate-100 px-1 rounded">student_key</code> where <code className="text-xs bg-slate-100 px-1 rounded">status = 'Verified'</code>
+                </p>
+              </div>
+              <div className="bg-white p-3 rounded-lg border border-slate-200">
+                <p className="font-semibold text-slate-800 mb-2">Employers with Recent Feedback</p>
+                <p className="text-slate-600 leading-relaxed">
+                  <strong>Source:</strong> <code className="text-xs bg-slate-100 px-1 rounded">employer_alumni_feedback.csv</code><br/>
+                  <strong>Method:</strong> Distinct count of <code className="text-xs bg-slate-100 px-1 rounded">employer_key</code> where feedback is approved OR created within last 6 months
+                </p>
+              </div>
+            </div>
+          </details>
+        </div>
+
+        {/* ROW 4 - Industry & Scorecard */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          {/* Industry Distribution */}
           <ChartCard
-            title="Hires by Industry"
-            subtitle="Top industries, their hires, and share of total"
-            contentClassName="flex flex-col justify-between h-[300px]"
+            title="Industry Distribution of Active Employers"
+            subtitle="Breakdown of employers by industry sector"
           >
-            <div className="flex-1">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart
-                  data={processedData.hiresByIndustryData}
-                  margin={{ top: 10, right: 20, left: 0, bottom: 40 }}
+            {metrics.industryDistribution.length === 0 ? (
+              <div className="flex items-center justify-center h-full min-h-[560px] text-slate-500">
+                No industry data available
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={500}>
+              <PieChart>
+                <Pie
+                    data={metrics.industryDistribution.slice(0, 8)}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                    label={({ industry, percent }) => `${industry} ${(percent).toFixed(0)}%`}
+                    outerRadius={120}
+                  fill="#8884d8"
+                    dataKey="count"
                 >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" angle={-25} textAnchor="end" interval={0} height={80} />
-                  <YAxis yAxisId="left" allowDecimals={false} />
-                  <YAxis yAxisId="right" orientation="right" tickFormatter={(value) => `${value}%`} domain={[0, 100]} />
-                  <Tooltip
-                    formatter={(value, name) =>
-                      name === 'Share of Hires'
-                        ? [`${value}%`, name]
-                        : [`${value.toLocaleString()} hires`, 'Hires']
-                    }
+                    {metrics.industryDistribution.slice(0, 8).map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                  ))}
+                </Pie>
+                  <Tooltip 
+                    formatter={(value, name, props) => [
+                      `${value} employers (${props.payload.percent.toFixed(2)}%)`,
+                      'Count'
+                    ]} 
                   />
-                  <Legend />
-                  <Bar yAxisId="left" dataKey="value" name="Hires" fill="#002F6C" radius={[4, 4, 0, 0]} maxBarSize={36}>
+                  <Legend 
+                    wrapperStyle={{ color: '#475569', fontSize: '12px' }}
+                  />
+              </PieChart>
+            </ResponsiveContainer>
+            )}
+            <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200 group relative">
+              <h4 className="text-xs font-semibold text-slate-700 mb-1 cursor-help flex items-center gap-1">
+                📊 Calculation & Data Source
+                <span className="text-slate-400 group-hover:text-slate-600">(Hover for details)</span>
+              </h4>
+              <div className="hidden group-hover:block">
+                <p className="text-xs text-slate-600 leading-relaxed">
+                <strong>Data Sources:</strong> <code className="text-xs bg-slate-200 px-1 rounded">dim_employers.csv</code>, <code className="text-xs bg-slate-200 px-1 rounded">fact_alumni_engagement.csv</code><br/>
+                <strong>Method:</strong> Filter active employers (those with engagement records), group by <code className="text-xs bg-slate-200 px-1 rounded">industry</code> field from <code className="text-xs bg-slate-200 px-1 rounded">dim_employers</code><br/>
+                <strong>Count:</strong> Distinct count of <code className="text-xs bg-slate-200 px-1 rounded">employer_key</code> per industry<br/>
+                <strong>Percentage:</strong> (Industry Count / Total Active Employers) × 100, sorted by count descending
+              </p>
+              </div>
+            </div>
+          </ChartCard>
+
+          {/* Employer Engagement Scorecard */}
+          <ChartCard
+            title="Employer Engagement Scorecard"
+            subtitle="Top employers by composite engagement score"
+          >
+            {metrics.engagementScorecard.length === 0 ? (
+              <div className="flex items-center justify-center h-full min-h-[560px] text-slate-500">
+                No engagement score data available
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={500}>
+                <BarChart
+                  data={metrics.engagementScorecard}
+                  layout="vertical"
+                  margin={{ top: 5, right: 80, left: 120, bottom: 5 }}
+                >
+                  <defs>
+                    <linearGradient id="scorecardGradient" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#002F6C" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#4A90E2" stopOpacity={1}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.5} />
+                  <XAxis 
+                    type="number" 
+                    stroke="#64748b"
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                  />
+                  <YAxis 
+                    dataKey="employerName" 
+                    type="category" 
+                    width={110}
+                    stroke="#64748b"
+                    tick={{ fill: '#64748b', fontSize: 11 }}
+                  />
+                  <Tooltip
+                    content={<CustomBarTooltip />}
+                  />
+                  <Legend 
+                    wrapperStyle={{ color: '#475569', fontSize: '14px' }}
+                  />
+                  <Bar 
+                    dataKey="engagementScore" 
+                    name="Engagement Score" 
+                    fill="url(#scorecardGradient)" 
+                    radius={[0, 4, 4, 0]}
+                  >
                     <LabelList
-                      dataKey="value"
-                      position="insideTop"
-                      formatter={(value) => value.toLocaleString()}
-                      fill="#ffffff"
-                      fontSize={11}
+                      dataKey="engagementScore" 
+                      position="right" 
+                      formatter={(value) => value.toFixed(1)}
+                      style={{ fill: '#475569', fontSize: '11px', fontWeight: '600' }}
                     />
                   </Bar>
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="percent"
-                    name="Share of Hires"
-                    stroke="#FDB515"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+            <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200 group relative">
+              <h4 className="text-xs font-semibold text-slate-700 mb-1 cursor-help flex items-center gap-1">
+                📊 Calculation & Data Source
+                <span className="text-slate-400 group-hover:text-slate-600">(Hover for details)</span>
+              </h4>
+              <div className="hidden group-hover:block">
+                <p className="text-xs text-slate-600 leading-relaxed">
+                <strong>Data Sources:</strong> <code className="text-xs bg-slate-200 px-1 rounded">dim_employers.csv</code>, <code className="text-xs bg-slate-200 px-1 rounded">fact_alumni_engagement.csv</code><br/>
+                <strong>Engagement Score Formula:</strong> (Events Count × 1) + (Students Interacted × 0.5) + (Hires × 2)<br/>
+                <strong>Events Count:</strong> Distinct <code className="text-xs bg-slate-200 px-1 rounded">event_key</code> per employer<br/>
+                <strong>Students Interacted:</strong> Distinct <code className="text-xs bg-slate-200 px-1 rounded">student_key</code> per employer<br/>
+                <strong>Hires:</strong> Count where <code className="text-xs bg-slate-200 px-1 rounded">hired_flag = '1'</code> per employer<br/>
+                <strong>Display:</strong> Top 10 employers sorted by engagement score descending
+              </p>
+              </div>
+            </div>
+          </ChartCard>
+        </div>
+
+        {/* ROW 5 - Alumni & Skills Analytics */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          {/* SLU Alumni Employed by Employer */}
+          <ChartCard
+            title="SLU Alumni Employed by Employer"
+            subtitle="Top 10 employers by verified alumni count"
+          >
+            {metrics.alumniEmployedPerEmployer.length === 0 ? (
+              <div className="flex items-center justify-center h-full min-h-[560px] text-slate-500">
+                No employment data available
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={500}>
+                <BarChart
+                  data={metrics.alumniEmployedPerEmployer}
+                  layout="vertical"
+                  margin={{ top: 5, right: 80, left: 120, bottom: 5 }}
+                >
+                  <defs>
+                    <linearGradient id="alumniEmployedGradient" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#002F6C" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#4A90E2" stopOpacity={1}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.5} />
+                  <XAxis 
+                    type="number" 
+                    stroke="#64748b"
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                  />
+                  <YAxis 
+                    dataKey="employerName" 
+                    type="category" 
+                    width={110}
+                    stroke="#64748b"
+                    tick={{ fill: '#64748b', fontSize: 11 }}
+                  />
+                  <Tooltip
+                    content={<CustomBarTooltip />}
+                  />
+                  <Legend 
+                    wrapperStyle={{ color: '#475569', fontSize: '14px' }}
+                  />
+                  <Bar 
+                    dataKey="alumniCount" 
+                    name="SLU Alumni" 
+                    fill="url(#alumniEmployedGradient)" 
+                    radius={[0, 4, 4, 0]}
+                  >
+                    <LabelList
+                      dataKey="alumniCount" 
+                      position="right" 
+                      formatter={(value) => value.toLocaleString()}
+                      style={{ fill: '#475569', fontSize: '11px', fontWeight: '600' }}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+            <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200 group relative">
+              <h4 className="text-xs font-semibold text-slate-700 mb-1 cursor-help flex items-center gap-1">
+                📊 Calculation & Data Source
+                <span className="text-slate-400 group-hover:text-slate-600">(Hover for details)</span>
+              </h4>
+              <div className="hidden group-hover:block">
+                <p className="text-xs text-slate-600 leading-relaxed">
+                <strong>Data Sources:</strong> <code className="text-xs bg-slate-200 px-1 rounded">alumni_employment.csv</code>, <code className="text-xs bg-slate-200 px-1 rounded">dim_employers.csv</code><br/>
+                <strong>Method:</strong> Filter employment records where <code className="text-xs bg-slate-200 px-1 rounded">status = 'Verified'</code>, join with <code className="text-xs bg-slate-200 px-1 rounded">dim_employers</code> on <code className="text-xs bg-slate-200 px-1 rounded">employer_key</code><br/>
+                <strong>Count:</strong> Count of distinct <code className="text-xs bg-slate-200 px-1 rounded">student_key</code> per <code className="text-xs bg-slate-200 px-1 rounded">employer_key</code><br/>
+                <strong>Display:</strong> Top 10 employers sorted by verified alumni count descending
+              </p>
+              </div>
+            </div>
+          </ChartCard>
+
+          {/* Technical Strength by Graduation Year */}
+          <ChartCard
+            title="Technical Strength by Graduation Year"
+            subtitle="Employer feedback on alumni technical skills by cohort"
+          >
+            {metrics.technicalStrengthByYear.averageRatings.length === 0 ? (
+              <div className="flex items-center justify-center h-full min-h-[560px] text-slate-500">
+                No feedback data available
+        </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={500}>
+                <ComposedChart 
+                  data={metrics.technicalStrengthByYear.averageRatings}
+                  margin={{ top: 30, right: 30, left: 0, bottom: 60 }}
+                >
+                  <defs>
+                    <linearGradient id="techRatingGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#002F6C" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#4A90E2" stopOpacity={0.8}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.5} />
+                  <XAxis 
+                    dataKey="graduationYear" 
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                    stroke="#64748b"
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                  />
+                  <YAxis 
+                    domain={[0, 5]}
+                    stroke="#64748b"
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                  />
+                      <Tooltip
+                    formatter={(value) => [`${value}/5`, 'Average Rating']} 
+                  />
+                  <Legend 
+                    wrapperStyle={{ color: '#475569', fontSize: '14px' }}
+                  />
+                  <Bar 
+                    dataKey="avgRating" 
+                    name="Average Rating (1-5)" 
+                    fill="url(#techRatingGradient)" 
+                    radius={[4, 4, 0, 0]}
+                  >
+                    <LabelList
+                      dataKey="avgRating" 
+                      position="top" 
+                      formatter={(value) => value.toFixed(2)}
+                      style={{ fill: '#1e293b', fontSize: '11px', fontWeight: '600' }}
+                    />
+                  </Bar>
+                  <Line 
+                    type="monotone" 
+                    dataKey="avgRating" 
+                    name="Trend" 
+                    stroke="#FDB515" 
+                    strokeWidth={3}
+                    dot={{ r: 4, fill: '#FDB515' }}
+                    activeDot={{ r: 6 }}
                   />
                 </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-2 text-[0.7rem] text-slate-600">
-              {processedData.topIndustryCategory
-                ? `Largest hiring industry: ${processedData.topIndustryCategory.name} with ${processedData.topIndustryCategory.value.toLocaleString()} hires (${processedData.topIndustryCategory.percent}% of total).`
-                : 'No industry data available.'}
-            </div>
-          </ChartCard>
-
-          <ChartCard title="Hires by Employer">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={processedData.hiresByEmployerData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" />
-                <YAxis dataKey="name" type="category" width={150} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="value" fill="#FDB515" />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartCard>
-
-          <ChartCard
-            title="Hiring Trend"
-            subtitle="Annual hires by employer partners"
-            contentClassName="flex flex-col justify-between h-[280px]"
-          >
-            <div className="flex-1">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={processedData.hiringTrendData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="year" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="hires" stroke="#002F6C" strokeWidth={2} dot={{ r: 3 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            {processedData.hiringTrendSummary ? (
-              <div className="mt-2 text-[0.7rem] text-slate-600">
-                Hires moved from {processedData.hiringTrendSummary.start} to {processedData.hiringTrendSummary.latest}
-                {' '}({processedData.hiringTrendSummary.change}% change). Peak hiring occurred in {processedData.hiringTrendSummary.peakYear}
-                {' '}with {processedData.hiringTrendSummary.peakValue} hires.
-              </div>
-            ) : null}
-          </ChartCard>
-
-          <ChartCard
-            title="Hires by Degree Level"
-            subtitle="Degrees of hired alumni and their share of total"
-            contentClassName="flex flex-col justify-between h-[260px]"
-          >
-            <div className="flex-1">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  layout="vertical"
-                  data={processedData.hiresByDegreeData}
-                  margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                  <XAxis type="number" tickFormatter={(value) => value.toLocaleString()} />
-                  <YAxis type="category" dataKey="name" width={130} />
-                  <Tooltip formatter={(value) => `${value.toLocaleString()} hires`} />
-                  <Bar dataKey="value" fill="#4A90E2" radius={[4, 4, 4, 4]} maxBarSize={38}>
-                    <LabelList dataKey="value" position="insideRight" formatter={(value) => value.toLocaleString()} fill="#ffffff" fontSize={11} />
-                    <LabelList dataKey="percent" position="right" formatter={(value) => `${value}%`} fill="#1e293b" fontSize={10} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-2 text-[0.7rem] text-slate-600">
-              Top degree demand: {processedData.topDegreeCategory.name} ({processedData.topDegreeCategory.value.toLocaleString()} hires, {processedData.topDegreeCategory.percent}% of total).
-            </div>
-          </ChartCard>
-
-          <ChartCard
-            title="Employment Type"
-            subtitle="Placement outcomes by position type"
-            contentClassName="flex flex-col justify-between h-[260px]"
-          >
-            <div className="flex-1">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={processedData.employmentTypeData}
-                    cx="50%"
-                    cy="55%"
-                    innerRadius={45}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    dataKey="value"
-                  >
-                    {processedData.employmentTypeData.map((entry, index) => (
-                      <Cell key={entry.name} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                    <LabelList dataKey="name" position="outside" fill="#1e293b" fontSize={11} offset={6} />
-                    <LabelList dataKey="percent" position="inside" formatter={(value) => `${value}%`} fill="#ffffff" fontSize={12} />
-                  </Pie>
-                  <Tooltip formatter={(value, name) => [`${value.toLocaleString()} hires`, name]} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-2 grid grid-cols-3 gap-3 text-[0.68rem] text-slate-600">
-              {processedData.employmentTypeData.map((item) => (
-                <div key={item.name} className="rounded-md bg-slate-100/70 px-2 py-2">
-                  <p className="font-semibold text-slate-700">{item.name}</p>
-                  <p>{item.value.toLocaleString()} hires</p>
-                  <p>{item.percent}% of total</p>
-                </div>
-              ))}
-            </div>
-          </ChartCard>
-
-          <ChartCard
-            title="Top 10 Employers"
-            subtitle="Hiring totals and share of overall placements"
-            contentClassName="flex flex-col justify-between h-[280px]"
-          >
-            <div className="flex-1">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  layout="vertical"
-                  data={processedData.topEmployersData}
-                  margin={{ top: 10, right: 24, left: 0, bottom: 10 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                  <XAxis type="number" tickFormatter={(value) => value.toLocaleString()} />
-                  <YAxis type="category" dataKey="name" width={160} />
-                  <Tooltip
-                    formatter={(value, name, payload) =>
-                      name === 'Share of Hires'
-                        ? [`${value}%`, name]
-                        : [`${value.toLocaleString()} hires`, payload.name]
-                    }
-                  />
-                  <Legend />
-                  <Bar dataKey="hires" name="Hires" fill="#002F6C" radius={[4, 4, 4, 4]} maxBarSize={40}>
-                    <LabelList dataKey="hires" position="insideRight" formatter={(value) => value.toLocaleString()} fill="#ffffff" fontSize={11} />
-                    <LabelList dataKey="percent" position="right" formatter={(value) => `${value}%`} fill="#1e293b" fontSize={10} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-2 text-[0.7rem] text-slate-600">
-              {processedData.topEmployersData.length > 0
-                ? `Leading partner: ${processedData.topEmployersData[0].name} with ${processedData.topEmployersData[0].hires.toLocaleString()} hires (${processedData.topEmployersData[0].percent}% of total).`
-                : 'No employer hiring data available.'}
-            </div>
-          </ChartCard>
-
-          <ChartCard
-            title="Employer Locations"
-            subtitle="Top hiring hubs and their share of employer presence"
-            contentClassName="flex flex-col justify-between h-[280px]"
-          >
-            <div className="flex-1">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  layout="vertical"
-                  data={processedData.employerLocationsData}
-                  margin={{ top: 10, right: 24, left: 0, bottom: 10 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                  <XAxis type="number" tickFormatter={(value) => value.toLocaleString()} />
-                  <YAxis type="category" dataKey="name" width={180} />
-                  <Tooltip
-                    formatter={(value, name, payload) =>
-                      name === 'Share'
-                        ? [`${value}%`, name]
-                        : [`${value.toLocaleString()} employers`, payload.name]
-                    }
-                  />
-                  <Legend />
-                  <Bar dataKey="value" name="Employers" fill="#4A90E2" radius={[4, 4, 4, 4]} maxBarSize={40}>
-                    <LabelList dataKey="value" position="insideRight" formatter={(value) => value.toLocaleString()} fill="#ffffff" fontSize={11} />
-                    <LabelList dataKey="percent" position="right" formatter={(value) => `${value}%`} fill="#1e293b" fontSize={10} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-2 text-[0.7rem] text-slate-600">
-              {processedData.employerLocationsData.length > 0
-                ? `Top hub: ${processedData.topLocationCategory.name} (${processedData.topLocationCategory.value.toLocaleString()} employers, ${processedData.topLocationCategory.percent}% of total).`
-                : 'No location data available.'}
-            </div>
-          </ChartCard>
-
-          <ChartCard title="Hiring vs Engagement Trend">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={processedData.hiringVsEngagementData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="year" />
-                <YAxis yAxisId="left" />
-                <YAxis yAxisId="right" orientation="right" />
-                <Tooltip />
-                <Legend />
-                <Bar yAxisId="left" dataKey="hires" fill="#002F6C" name="Hires" />
-                <Line yAxisId="right" type="monotone" dataKey="engagement" stroke="#FDB515" strokeWidth={2} name="Engagement Score" />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </ChartCard>
-
-          <ChartCard title="Employer Geography (2020-2025)" className="lg:col-span-2" fullHeight={true}>
-            <EmployerUSMap 
-              alumniCounts={processedData.alumniCountsByState}
-              employerCounts={processedData.employerCountsByState}
-            />
-          </ChartCard>
-        </div>
-
-        <h3 className="text-2xl font-semibold text-sluBlue mb-4">Advanced Hiring Analytics</h3>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6" style={{ gridAutoRows: 'minmax(320px, auto)' }}>
-          <ChartCard title="Talent Pipeline" subtitle="Stage-to-stage conversion from applicants to hires" contentClassName="h-[320px] relative">
-            {processedData.pipelineFunnelData.some((item) => item.count > 0) ? (
-              <>
-                <div className="absolute left-3 top-10 flex flex-col gap-[34px] text-[0.75rem] text-slate-600">
-                  {processedData.pipelineFunnelData.map((stage) => (
-                    <span key={stage.stage}>{stage.stage}</span>
-                  ))}
-                </div>
-                <div className="h-full pl-24 pr-12 pt-4">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <FunnelChart margin={{ top: 0, right: 16, left: 0, bottom: 10 }}>
-                      <Tooltip
-                        formatter={(value) => value.toLocaleString()}
-                        labelFormatter={(label, payload) => {
-                          const dataPoint = payload?.[0]?.payload;
-                          return dataPoint ? `${dataPoint.stage} • ${dataPoint.stageConversionLabel}` : label;
-                        }}
-                      />
-                      <Funnel
-                        data={processedData.pipelineFunnelData}
-                        dataKey="count"
-                        fill="#002F6C"
-                        stroke="#0f172a"
-                        isAnimationActive={false}
-                      >
-                        <LabelList dataKey="countLabel" position="inside" fill="#ffffff" fontSize={12} />
-                        <LabelList dataKey="rateLabel" position="right" fill="#0f172a" fontSize={12} offset={6} />
-                      </Funnel>
-                    </FunnelChart>
                   </ResponsiveContainer>
-                </div>
-              </>
-            ) : (
-              <div className="flex items-center justify-center h-full text-sm text-gray-500">No pipeline data available.</div>
             )}
-            {processedData.pipelineFunnelData.length > 1 ? (
-              <div className="mt-2 ml-24 text-[0.7rem] text-slate-600">
-                {processedData.pipelineFinalStage
-                  ? `Final conversion: ${processedData.pipelineFinalStage.stage} retains ${processedData.pipelineFinalStage.rateLabel} (${processedData.pipelineFinalStage.countLabel} hires).`
-                  : null}
-                {processedData.pipelineDropStage
-                  ? ` Largest drop occurs entering ${processedData.pipelineDropStage.stage} with ${processedData.pipelineDropStage.stageConversion}% of the previous stage retained.`
-                  : null}
+            <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200 group relative">
+              <h4 className="text-xs font-semibold text-slate-700 mb-1 cursor-help flex items-center gap-1">
+                📊 Calculation & Data Source
+                <span className="text-slate-400 group-hover:text-slate-600">(Hover for details)</span>
+              </h4>
+              <div className="hidden group-hover:block">
+                <p className="text-xs text-slate-600 leading-relaxed">
+                <strong>Data Sources:</strong> <code className="text-xs bg-slate-200 px-1 rounded">employer_alumni_feedback.csv</code><br/>
+                <strong>Average Rating:</strong> Mean of <code className="text-xs bg-slate-200 px-1 rounded">rating_overall</code> grouped by <code className="text-xs bg-slate-200 px-1 rounded">graduation_year</code><br/>
+                <strong>Method:</strong> Filter valid ratings (1-5 scale), group by <code className="text-xs bg-slate-200 px-1 rounded">graduation_year</code>, calculate average per year<br/>
+                <strong>Trend Line:</strong> Shows rating progression across graduation cohorts<br/>
+                <strong>Display:</strong> Years with feedback data, sorted chronologically
+              </p>
               </div>
-            ) : null}
+            </div>
           </ChartCard>
 
+          {/* Overall Hiring Funnel */}
           <ChartCard
-            title="Employer Health Scorecard"
-            subtitle="Recent hires vs. engagement activity (bubble sized by total hires)"
-            contentClassName="flex flex-col justify-between h-[320px]"
+            title="Overall Hiring Funnel"
+            subtitle="End-to-end hiring process metrics"
           >
-            <div className="flex-1">
-              <ResponsiveContainer width="100%" height="100%">
-                <ScatterChart margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" dataKey="recentEvents" name="Recent Events" allowDecimals={false} />
-                  <YAxis type="number" dataKey="recentHires" name="12-Mo Hires" allowDecimals={false} />
-                  <ZAxis type="number" dataKey="bubbleSize" range={[80, 400]} />
-                  <Tooltip content={renderEmployerHealthTooltip} />
-                  <Legend />
-                  <Scatter
-                    name="Employers"
-                    data={processedData.employerHealthScores}
-                    fill="#FDB515"
-                    fillOpacity={0.8}
-                    line
+            {metrics.hiringFunnel.opportunitiesCount === 0 ? (
+              <div className="flex items-center justify-center h-full min-h-[560px] text-slate-500">
+                No hiring funnel data available
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={500}>
+                <BarChart
+                  data={[
+                    { stage: 'Opportunities', count: metrics.hiringFunnel.opportunitiesCount },
+                    { stage: 'Applications', count: metrics.hiringFunnel.applicationsCount },
+                    { stage: 'Hires', count: metrics.hiringFunnel.hiresCount },
+                  ]}
+                  layout="vertical"
+                  margin={{ top: 20, right: 80, left: 20, bottom: 20 }}
+                >
+                  <defs>
+                    <linearGradient id="funnelGradient1" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#4A90E2" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#002F6C" stopOpacity={1}/>
+                    </linearGradient>
+                    <linearGradient id="funnelGradient2" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#FDB515" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#FFD700" stopOpacity={1}/>
+                    </linearGradient>
+                    <linearGradient id="funnelGradient3" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#7ED321" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#50E3C2" stopOpacity={1}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.5} />
+                  <XAxis 
+                    type="number" 
+                    stroke="#64748b"
+                    tick={{ fill: '#64748b', fontSize: 12 }}
                   />
-                </ScatterChart>
+                  <YAxis 
+                    dataKey="stage" 
+                    type="category" 
+                    stroke="#64748b"
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                  />
+                  <Tooltip
+                    content={<CustomBarTooltip />}
+                  />
+                  <Legend 
+                    wrapperStyle={{ color: '#475569', fontSize: '14px' }}
+                  />
+                  <Bar 
+                    dataKey="count" 
+                    name="Count"
+                    radius={[0, 4, 4, 0]}
+                  >
+                    {[
+                      { stage: 'Opportunities', fill: 'url(#funnelGradient1)' },
+                      { stage: 'Applications', fill: 'url(#funnelGradient2)' },
+                      { stage: 'Hires', fill: 'url(#funnelGradient3)' },
+                    ].map((item, index) => (
+                      <Cell key={`cell-${index}`} fill={item.fill} />
+                    ))}
+                    <LabelList
+                      dataKey="count" 
+                      position="right" 
+                      formatter={(value) => value.toLocaleString()}
+                      style={{ fill: '#1e293b', fontSize: '11px', fontWeight: '600' }}
+                    />
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
+            )}
+            {metrics.hiringFunnel.opportunitiesCount > 0 && (
+              <div className="mt-4 p-3 bg-slate-50 rounded-lg text-xs text-slate-600">
+                <p className="font-semibold mb-2">Conversion Metrics:</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="font-medium">Application Rate:</span> {metrics.hiringFunnel.applicationRate.toFixed(1)}%
             </div>
-            <div className="mt-2 text-[0.7rem] text-slate-600">
-              {processedData.employerHealthScores.length > 0
-                ? `Highest health score: ${processedData.employerHealthScores[0].employerName} (${processedData.employerHealthScores[0].healthScore}) with ${processedData.employerHealthScores[0].recentHires} recent hires and ${processedData.employerHealthScores[0].recentEvents} events.`
-                : 'No employer health data available.'}
+                  <div>
+                    <span className="font-medium">Hire Rate:</span> {metrics.hiringFunnel.hireRate.toFixed(1)}%
+            </div>
+                </div>
+              </div>
+            )}
+            <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200 group relative">
+              <h4 className="text-xs font-semibold text-slate-700 mb-1 cursor-help flex items-center gap-1">
+                📊 Calculation & Data Source
+                <span className="text-slate-400 group-hover:text-slate-600">(Hover for details)</span>
+              </h4>
+              <div className="hidden group-hover:block">
+                <p className="text-xs text-slate-600 leading-relaxed">
+                <strong>Data Sources:</strong> <code className="text-xs bg-slate-200 px-1 rounded">fact_alumni_engagement.csv</code><br/>
+                <strong>Opportunities:</strong> Count where <code className="text-xs bg-slate-200 px-1 rounded">job_offers_count</code> &gt; 0 OR <code className="text-xs bg-slate-200 px-1 rounded">applications_submitted</code> &gt; 0<br/>
+                <strong>Applications:</strong> Sum of <code className="text-xs bg-slate-200 px-1 rounded">applications_submitted</code> values<br/>
+                <strong>Hires:</strong> Count where <code className="text-xs bg-slate-200 px-1 rounded">hired_flag = '1'</code><br/>
+                <strong>Application Rate:</strong> (Applications / Opportunities) × 100<br/>
+                <strong>Hire Rate:</strong> (Hires / Applications) × 100
+              </p>
+              </div>
             </div>
           </ChartCard>
         </div>
 
-        <h3 className="text-2xl font-semibold text-sluBlue mb-4">Inclusion & Retention Insights</h3>
-        <div className="grid grid-cols-1 gap-6 mb-10" style={{ gridAutoRows: 'minmax(320px, auto)' }}>
-          <ChartCard title="Churn Risk Watchlist" subtitle="Employers showing early warning signs" isTable={true}>
-            <table className="min-w-full text-xs text-slate-600">
-              <thead className="bg-slate-100 text-[0.65rem] font-semibold uppercase tracking-wider text-slate-500">
-                <tr>
-                  <th className="px-3 py-2 text-left">Employer</th>
-                  <th className="px-3 py-2 text-left">Risk Score</th>
-                  <th className="px-3 py-2 text-left">12-Mo Hires</th>
-                  <th className="px-3 py-2 text-left">Recent Events</th>
-                  <th className="px-3 py-2 text-left">Avg Engagement</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white">
-                {processedData.churnRiskList.map((row) => (
-                  <tr key={row.employerKey} className="odd:bg-slate-50 even:bg-white hover:bg-slate-100 transition-colors">
-                    <td className="px-3 py-2 font-semibold text-slate-700">{row.employerName}</td>
-                    <td className="px-3 py-2 text-slate-600">{row.riskScore}</td>
-                    <td className="px-3 py-2 text-slate-600">{row.recentHires}</td>
-                    <td className="px-3 py-2 text-slate-600">{row.recentEvents}</td>
-                    <td className="px-3 py-2 text-slate-600">{row.avgEngagementScore}</td>
+        {/* ROW 6 - Detail & Analysis */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
+          {/* Top Hiring Employers Table - 60% width */}
+          <div className="lg:col-span-3">
+            <ChartCard
+              title="Top Hiring Employers – Detailed View"
+              subtitle="Comprehensive view of top performing employer partners"
+              isTable={true}
+            >
+              {metrics.topHiringEmployers.length === 0 ? (
+                <div className="flex items-center justify-center h-full min-h-[400px] text-slate-500">
+                  No employer data available for the selected filters
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm table-auto">
+                    <thead className="bg-gradient-to-r from-slate-200 to-slate-100">
+                      <tr>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-800">Rank</th>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-800">Employer</th>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-800">Industry</th>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-800">Hires</th>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-800">Events Attended</th>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-800">Engagement Score</th>
                   </tr>
-                ))}
-                {processedData.churnRiskList.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-3 py-6 text-center text-xs text-slate-500">No employers flagged as high risk.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </ChartCard>
-
-          <ChartCard title="Gender Hiring Mix" subtitle="Applicant vs hire mix by gender with conversion rate" contentClassName="flex flex-col justify-between h-[280px]">
-            <div className="flex-1">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={processedData.diversityByGender}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="category" />
-                  <YAxis dataKey="hireRate" tickFormatter={(value) => `${value}%`} />
-                  <Tooltip formatter={(value, name) => [`${value}%`, name]} />
-                  <Legend />
-                  <Bar dataKey="hireRate" fill="#002F6C" />
-                </BarChart>
-              </ResponsiveContainer>
+                </thead>
+                    <tbody className="bg-white divide-y divide-slate-200">
+                      {metrics.topHiringEmployers.map((employer, index) => (
+                        <tr key={index} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-slate-50 transition-colors">
+                          <td className="px-4 py-3 text-slate-800 font-medium">#{index + 1}</td>
+                          <td className="px-4 py-3 text-slate-800 font-medium">{employer.employerName}</td>
+                          <td className="px-4 py-3 text-slate-700">{employer.industry}</td>
+                          <td className="px-4 py-3 text-slate-700">{employer.totalHires}</td>
+                          <td className="px-4 py-3 text-slate-700">{employer.eventsAttended}</td>
+                          <td className="px-4 py-3 text-slate-700">{employer.engagementScore.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            {processedData.diversityByGender.length > 0 ? (
-              <div className="mt-2 text-[0.7rem] text-slate-600">
-                {(() => {
-                  const topRate = processedData.diversityByGender.reduce((prev, current) => (current.hireRate > prev.hireRate ? current : prev), processedData.diversityByGender[0]);
-                  return `Highest hire rate: ${topRate.category} (${topRate.hireRate}%).`;
-                })()}
+              )}
+            <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200 group relative">
+              <h4 className="text-xs font-semibold text-slate-700 mb-1 cursor-help flex items-center gap-1">
+                📊 Calculation & Data Source
+                <span className="text-slate-400 group-hover:text-slate-600">(Hover for details)</span>
+              </h4>
+              <div className="hidden group-hover:block">
+                <p className="text-xs text-slate-600 leading-relaxed">
+                <strong>Data Sources:</strong> <code className="text-xs bg-slate-200 px-1 rounded">dim_employers.csv</code>, <code className="text-xs bg-slate-200 px-1 rounded">fact_alumni_engagement.csv</code><br/>
+                <strong>Ranking:</strong> Sorted by <code className="text-xs bg-slate-200 px-1 rounded">totalHires</code> descending (top 10)<br/>
+                <strong>Total Hires:</strong> Count of records where <code className="text-xs bg-slate-200 px-1 rounded">hired_flag = '1'</code> per employer<br/>
+                <strong>Events Attended:</strong> Distinct count of <code className="text-xs bg-slate-200 px-1 rounded">event_key</code> per employer<br/>
+                <strong>Engagement Score:</strong> (Events × 1) + (Students Interacted × 0.5) + (Hires × 2)<br/>
+                <strong>Industry:</strong> From <code className="text-xs bg-slate-200 px-1 rounded">dim_employers.industry</code> field
+              </p>
               </div>
-            ) : null}
+            </div>
           </ChartCard>
         </div>
  
-        {/* Analysis Insights Section */}
-        <InsightsPanel 
-          insights={insights} 
-          title="📈 Employer Engagement Analysis & Insights"
-        />
+          {/* Analysis Summary - 40% width */}
+          <div className="lg:col-span-2">
+            <ChartCard
+              title="Analysis Summary"
+              subtitle="Key insights and strategic recommendations"
+            >
+              <div className="prose prose-slate max-w-none text-sm">
+                <p className="text-slate-600 mb-3">
+                  This dashboard analyzes historic employer engagement data to reveal partnership strength, hiring effectiveness, and industry trends.
+                </p>
+                
+                <h5 className="font-semibold text-slate-800 mb-2 mt-4">Strong Industries</h5>
+                <p className="text-slate-600 mb-3">
+                  {metrics.industryDistribution.length > 0 
+                    ? `${metrics.industryDistribution[0]?.industry || 'Technology'} leads with ${metrics.industryDistribution[0]?.count || 0} active employers. Focus on maintaining and expanding partnerships in top-performing industries.`
+                    : 'Industry data shows which sectors have the strongest SLU partnerships.'}
+                </p>
 
-        <div className="mt-10 rounded-xl border border-slate-200 bg-white p-6 shadow">
-          <h3 className="text-2xl font-semibold text-sluBlue mb-2">🔮 Data Scientist Predictions</h3>
-          <p className="text-sm text-slate-600 mb-4">
-            Forward-looking estimates based on the latest hiring trends and conversion metrics.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-[0.85rem] text-slate-600">
-            <div className="rounded-lg bg-slate-50 border border-slate-200 p-4">
-              <h4 className="text-sm font-semibold text-slate-700">Next-Quarter Hiring Forecast</h4>
-              <p className="mt-2">
-                Projecting {processedData.hiringTrendSummary ? Math.round(processedData.hiringTrendSummary.latest * 1.05) : '—'} hires next quarter
-                assuming the current positive trend continues (+5% growth scenario).
+                <h5 className="font-semibold text-slate-800 mb-2">Hiring Efficiency</h5>
+                <p className="text-slate-600 mb-3">
+                  The hiring funnel shows {metrics.hiringFunnel.applicationRate.toFixed(1)}% application rate and {metrics.hiringFunnel.hireRate.toFixed(1)}% hire rate. 
+                  {metrics.hiringFunnel.hireRate > 20 
+                    ? ' Strong conversion indicates effective employer-student matching.' 
+                    : ' Opportunities exist to improve conversion through better candidate preparation and employer alignment.'}
+                </p>
+
+                <h5 className="font-semibold text-slate-800 mb-2">Cohort Performance</h5>
+                <p className="text-slate-600">
+                  Technical strength ratings by graduation year help identify which cohorts excel and which may need additional curriculum support or career preparation.
+                </p>
+              </div>
+            </ChartCard>
+          </div>
+        </div>
+
+        {/* ROW 2 - Employer Participation Trend (Full Width) - Moved Before Predictions */}
+        <div className="mb-6">
+          <ChartCard
+            title="Employer Participation Trend"
+            subtitle="Month-over-month view of active employers and total events"
+          >
+            {metrics.participationTrend.length === 0 ? (
+              <div className="flex items-center justify-center h-full min-h-[560px] text-slate-500">
+                No participation data available for the selected filters
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={500}>
+                <ComposedChart
+                  data={metrics.participationTrend}
+                  margin={{ top: 30, right: 30, left: 20, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="activeEmployersGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#002F6C" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#002F6C" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="totalEventsGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#FDB515" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#FDB515" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.5} />
+                  <XAxis 
+                    dataKey="month" 
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                    stroke="#64748b"
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                  />
+                  <YAxis 
+                    stroke="#64748b"
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                  />
+                  <Tooltip
+                    content={<CustomTooltip />}
+                  />
+                  <Legend 
+                    wrapperStyle={{ color: '#475569', fontSize: '14px' }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="activeEmployers" 
+                    name="Active Employers"
+                    stroke="#002F6C" 
+                    strokeWidth={3}
+                    dot={{ r: 5, fill: '#002F6C' }}
+                    activeDot={{ r: 7 }}
+                  >
+                    <LabelList
+                      dataKey="activeEmployers" 
+                      position="top" 
+                      formatter={(value) => value.toLocaleString()}
+                      style={{ fill: '#002F6C', fontSize: '11px', fontWeight: '600' }}
+                    />
+                  </Line>
+                  <Line
+                    type="monotone"
+                    dataKey="totalEvents" 
+                    name="Total Events"
+                    stroke="#FDB515"
+                    strokeWidth={3}
+                    dot={{ r: 5, fill: '#FDB515' }}
+                    activeDot={{ r: 7 }}
+                  >
+                    <LabelList 
+                      dataKey="totalEvents" 
+                      position="top" 
+                      formatter={(value) => value.toLocaleString()}
+                      style={{ fill: '#FDB515', fontSize: '11px', fontWeight: '600' }}
+                    />
+                  </Line>
+                </ComposedChart>
+            </ResponsiveContainer>
+            )}
+            <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200 group relative">
+              <h4 className="text-xs font-semibold text-slate-700 mb-1 cursor-help flex items-center gap-1">
+                📊 Calculation & Data Source
+                <span className="text-slate-400 group-hover:text-slate-600">(Hover for details)</span>
+              </h4>
+              <div className="hidden group-hover:block">
+                <p className="text-xs text-slate-600 leading-relaxed">
+                <strong>Data Sources:</strong> <code className="text-xs bg-slate-200 px-1 rounded">fact_alumni_engagement.csv</code>, <code className="text-xs bg-slate-200 px-1 rounded">dim_date.csv</code><br/>
+                <strong>Active Employers:</strong> Distinct count of <code className="text-xs bg-slate-200 px-1 rounded">employer_key</code> per month from engagement records<br/>
+                <strong>Total Events:</strong> Distinct count of <code className="text-xs bg-slate-200 px-1 rounded">event_key</code> per month from engagement records<br/>
+                <strong>Method:</strong> Grouped by month using <code className="text-xs bg-slate-200 px-1 rounded">event_date_key</code> joined with <code className="text-xs bg-slate-200 px-1 rounded">dim_date</code> to extract year and month
               </p>
+              </div>
             </div>
-            <div className="rounded-lg bg-slate-50 border border-slate-200 p-4">
-              <h4 className="text-sm font-semibold text-slate-700">At-Risk Employers</h4>
-              <p className="mt-2">
-                Churn model flags {processedData.churnRiskList.length} employers for proactive outreach. Prioritize personalized engagement to
-                prevent pipeline drop-off.
+          </ChartCard>
+        </div>
+
+        {/* ROW 3 - Job Opportunities vs Hires (Full Width) - Moved Before Predictions */}
+        <div className="mb-6">
+          <ChartCard
+            title="Job Opportunities vs Hires"
+            subtitle="Monthly comparison of opportunities created and actual hires"
+          >
+            {metrics.opportunitiesVsHires.length === 0 ? (
+              <div className="flex items-center justify-center h-full min-h-[560px] text-slate-500">
+                No opportunities data available
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={500}>
+                <BarChart
+                  data={metrics.opportunitiesVsHires}
+                  margin={{ top: 30, right: 30, left: 0, bottom: 60 }}
+                >
+                  <defs>
+                    <linearGradient id="opportunitiesGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#4A90E2" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#4A90E2" stopOpacity={0.8}/>
+                    </linearGradient>
+                    <linearGradient id="hiresGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#FDB515" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#FFD700" stopOpacity={0.8}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.5} />
+                  <XAxis 
+                    dataKey="month" 
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                    stroke="#64748b"
+                    tick={{ fill: '#64748b', fontSize: 11 }}
+                  />
+                  <YAxis 
+                    stroke="#64748b"
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                  />
+                  <Tooltip 
+                    content={<CustomBarTooltip />}
+                  />
+                  <Legend 
+                    wrapperStyle={{ color: '#475569', fontSize: '14px' }}
+                  />
+                  <Bar 
+                    dataKey="opportunities" 
+                    name="Opportunities" 
+                    fill="url(#opportunitiesGradient)" 
+                    radius={[4, 4, 0, 0]}
+                  >
+                    <LabelList
+                      dataKey="opportunities" 
+                      position="top" 
+                      formatter={(value) => value.toLocaleString()}
+                      style={{ fill: '#1e293b', fontSize: '11px', fontWeight: '600' }}
+                    />
+                  </Bar>
+                  <Bar 
+                    dataKey="hires" 
+                    name="Hires" 
+                    fill="url(#hiresGradient)" 
+                    radius={[4, 4, 0, 0]}
+                  >
+                    <LabelList
+                      dataKey="hires" 
+                      position="top" 
+                      formatter={(value) => value.toLocaleString()}
+                      style={{ fill: '#92400e', fontSize: '11px', fontWeight: '600' }}
+                    />
+                  </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            )}
+            <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200 group relative">
+              <h4 className="text-xs font-semibold text-slate-700 mb-1 cursor-help flex items-center gap-1">
+                📊 Calculation & Data Source
+                <span className="text-slate-400 group-hover:text-slate-600">(Hover for details)</span>
+              </h4>
+              <div className="hidden group-hover:block">
+                <p className="text-xs text-slate-600 leading-relaxed">
+                <strong>Data Sources:</strong> <code className="text-xs bg-slate-200 px-1 rounded">fact_alumni_engagement.csv</code>, <code className="text-xs bg-slate-200 px-1 rounded">dim_date.csv</code><br/>
+                <strong>Opportunities:</strong> Count of engagement records where <code className="text-xs bg-slate-200 px-1 rounded">job_offers_count</code> &gt; 0 OR <code className="text-xs bg-slate-200 px-1 rounded">applications_submitted</code> &gt; 0, grouped by month<br/>
+                <strong>Hires:</strong> Count of engagement records where <code className="text-xs bg-slate-200 px-1 rounded">hired_flag = '1'</code>, grouped by month<br/>
+                <strong>Method:</strong> Monthly aggregation using <code className="text-xs bg-slate-200 px-1 rounded">hire_date_key</code> or <code className="text-xs bg-slate-200 px-1 rounded">event_date_key</code> joined with <code className="text-xs bg-slate-200 px-1 rounded">dim_date</code>
               </p>
+              </div>
             </div>
-            <div className="rounded-lg bg-slate-50 border border-slate-200 p-4">
-              <h4 className="text-sm font-semibold text-slate-700">Industry Momentum</h4>
-              <p className="mt-2">
-                Growth-driven industries such as {processedData.topIndustryCategory.name} show potential for an additional
-                {' '}{processedData.topIndustryCategory.percent + 5 <= 100 ? processedData.topIndustryCategory.percent + 5 : processedData.topIndustryCategory.percent}% share if events focus on their skills gaps.
-              </p>
+          </ChartCard>
+        </div>
+
+        {/* PREDICTIVE INSIGHTS SECTION - 5 Employer-SLU Relationship Predictions */}
+        {predictiveInsights && (
+          <div className="mb-6">
+            <div className="bg-gradient-to-br from-sluBlue via-blue-700 to-blue-800 rounded-2xl shadow-xl p-8 text-white">
+              <div className="mb-6">
+                <h2 className="text-3xl font-bold mb-2">🔮 Employer-SLU Relationship Predictions</h2>
+                <p className="text-blue-100 text-lg">
+                  Data-driven insights to strengthen SLU-employer partnerships and hiring relationships
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                {/* 1. Top Partnerships */}
+                {predictiveInsights.topPartnerships && predictiveInsights.topPartnerships.length > 0 && (
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
+                    <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
+                      <span>💼</span> Strongest Employer Partnerships
+                      <InfoTooltip
+                        title="Calculation Method"
+                        content={`Data Sources: dim_employers.csv, alumni_employment.csv, fact_alumni_engagement.csv\nMethod: Count verified hires per employer, count event participations, calculate partnership score (hires × 2 + events).\nFormula: (Verified Hires × 2) + Event Participations\nSorted by: Partnership score (descending)`}
+                      />
+                    </h3>
+                    <div className="space-y-2">
+                      {predictiveInsights.topPartnerships.map((partner, idx) => (
+                        <div key={idx} className="bg-white/5 rounded-lg p-3 border border-white/10">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <p className="font-semibold text-white text-sm">{partner.name}</p>
+                              <p className="text-xs text-blue-200">{partner.industry}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-bold text-sluGold">{partner.score}</p>
+                              <p className="text-xs text-blue-200">{partner.hires} hires, {partner.events} events</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Expansion Industries */}
+                {predictiveInsights.expansionIndustries && predictiveInsights.expansionIndustries.length > 0 && (
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
+                    <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
+                      <span>📈</span> Industries with Expansion Potential
+                      <InfoTooltip
+                        title="Calculation Method"
+                        content={`Data Sources: dim_employers.csv, alumni_employment.csv\nMethod: Group employers by industry, count total hires per industry, calculate average hires per employer.\nFormula: Total Hires / Employer Count per industry\nExpansion Potential: High = < 10 employers with hires, Moderate = 10+ employers with hires`}
+                      />
+                    </h3>
+                    <div className="space-y-2">
+                      {predictiveInsights.expansionIndustries.map((industry, idx) => (
+                        <div key={idx} className="bg-white/5 rounded-lg p-3 border border-white/10">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <p className="font-semibold text-white text-sm">{industry.industry}</p>
+                              <p className="text-xs text-blue-200">{industry.employerCount} employers</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-bold text-sluGold">{industry.totalHires}</p>
+                              <span className={`text-xs px-2 py-0.5 rounded ${
+                                industry.expansionPotential === 'High' ? 'bg-green-500/30 text-green-200' : 'bg-yellow-500/30 text-yellow-200'
+                              }`}>
+                                {industry.expansionPotential}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Employers Ready for Hires */}
+                {predictiveInsights.readyForHires && predictiveInsights.readyForHires.length > 0 && (
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
+                    <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
+                      <span>🎯</span> Employers Ready for More Hires
+                      <InfoTooltip
+                        title="Calculation Method"
+                        content={`Data Sources: dim_employers.csv, alumni_employment.csv, fact_alumni_engagement.csv\nMethod: Count current verified hires, count recent engagements (last 6 months), calculate readiness score (hires + engagements × 0.5).\nFormula: Current Hires + (Recent Engagements × 0.5)\nFilter: Employers with hires > 0 AND recent engagements > 0`}
+                      />
+                    </h3>
+                    <div className="space-y-2">
+                      {predictiveInsights.readyForHires.map((employer, idx) => (
+                        <div key={idx} className="bg-white/5 rounded-lg p-3 border border-white/10">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <p className="font-semibold text-white text-sm">{employer.name}</p>
+                              <p className="text-xs text-blue-200">{employer.industry}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-bold text-sluGold">{employer.currentHires}</p>
+                              <p className="text-xs text-blue-200">{employer.recentEngagements} recent</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. Event Participation Opportunities */}
+                {predictiveInsights.eventOpportunities && predictiveInsights.eventOpportunities.length > 0 && (
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
+                    <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
+                      <span>📅</span> Event Participation Opportunities
+                      <InfoTooltip
+                        title="Calculation Method"
+                        content={`Data Sources: dim_employers.csv, fact_alumni_engagement.csv, dim_event.csv\nMethod: Count past event participations per employer, count upcoming events, calculate opportunity score (past + potential × 2).\nFormula: Past Events + (Potential Events × 2)\nPotential Events: Estimated from upcoming events count`}
+                      />
+                    </h3>
+                    <div className="space-y-2">
+                      {predictiveInsights.eventOpportunities.map((opp, idx) => (
+                        <div key={idx} className="bg-white/5 rounded-lg p-3 border border-white/10">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <p className="font-semibold text-white text-sm">{opp.name}</p>
+                              <p className="text-xs text-blue-200">{opp.industry}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-bold text-sluGold">{opp.opportunityScore}</p>
+                              <p className="text-xs text-blue-200">{opp.pastEvents} past, {opp.potentialEvents} potential</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-          <p className="mt-4 text-xs text-slate-500">
-            Predictions are illustrative and assume consistent engagement programs; refine with a production forecasting model as data volume grows.
-          </p>
+        )}
+
+        {/* Comprehensive Analysis Summary Section - Collapsible */}
+        <div className="mt-6 bg-gradient-to-br from-white via-blue-50/50 to-blue-50/30 rounded-xl shadow-md border border-blue-300/60 overflow-hidden">
+          <button
+            onClick={() => setShowAnalysisSummary(!showAnalysisSummary)}
+            className="w-full px-6 py-4 flex items-center justify-between hover:bg-blue-50/50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <h3 className="text-xl font-bold text-slate-800">Analysis Summary</h3>
+              <span className="text-xs text-slate-500 bg-slate-200 px-2 py-1 rounded">
+                Click to {showAnalysisSummary ? 'hide' : 'view'} details
+              </span>
+            </div>
+            <svg
+              className={`w-5 h-5 text-slate-600 transition-transform ${showAnalysisSummary ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          
+          {showAnalysisSummary && (
+            <div className="px-6 pb-6">
+              <p className="text-slate-600 mb-6 text-sm">
+                Overview of visualizations and predictive insights to help understand the dashboard.
+              </p>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left Column - Visualizations */}
+            <div className="space-y-4">
+              <h4 className="text-base font-semibold text-slate-800 mb-3">Visualization Guide</h4>
+              <div>
+                <h5 className="font-semibold text-slate-800 mb-1 text-sm">📊 KPIs</h5>
+                <ul className="list-disc list-inside space-y-1 text-xs text-slate-600 ml-3">
+                  <li><strong>Active Employers:</strong> Employers who participated in events or hired alumni</li>
+                  <li><strong>Avg Employer Rating:</strong> Average partnership quality rating</li>
+                  <li><strong>Hiring Conversion Rate:</strong> Percentage of opportunities that become hires</li>
+                  <li><strong>Avg Engagement Score:</strong> Composite score of events, interactions, and hires</li>
+                  <li><strong>Alumni Employed at Partners:</strong> Total SLU alumni working at partner companies</li>
+                  <li><strong>Employers with Recent Feedback:</strong> Employers providing feedback in last 6 months</li>
+                </ul>
+              </div>
+
+              <div>
+                <h5 className="font-semibold text-slate-800 mb-1 text-sm">📈 Employer Participation Trend</h5>
+                <p className="text-xs text-slate-600">Line chart showing month-over-month employer participation. Tracks active employers and total events over time.</p>
+              </div>
+
+              <div>
+                <h5 className="font-semibold text-slate-800 mb-1 text-sm">💼 Job Opportunities vs Hires</h5>
+                <p className="text-xs text-slate-600">Grouped bar chart comparing job opportunities posted vs actual hires. Shows conversion efficiency.</p>
+              </div>
+
+              <div>
+                <h5 className="font-semibold text-slate-800 mb-1 text-sm">🏭 Industry Distribution</h5>
+                <p className="text-xs text-slate-600">Pie chart showing which industries (Technology, Healthcare, Finance, etc.) have the strongest SLU partnerships.</p>
+              </div>
+
+              <div>
+                <h5 className="font-semibold text-slate-800 mb-1 text-sm">⭐ Employer Engagement Scorecard</h5>
+                <p className="text-xs text-slate-600">Horizontal bar chart ranking employers by engagement score. Combines events, interactions, and hires.</p>
+              </div>
+
+              <div>
+                <h5 className="font-semibold text-slate-800 mb-1 text-sm">👥 SLU Alumni Employed by Employer</h5>
+                <p className="text-xs text-slate-600">Shows which employers have the most SLU alumni. Indicates strong hiring relationships.</p>
+              </div>
+
+              <div>
+                <h5 className="font-semibold text-slate-800 mb-1 text-sm">🎓 Technical Strength by Graduation Year</h5>
+                <p className="text-xs text-slate-600">Composed chart showing employer feedback on technical skills by graduation year. Reveals curriculum effectiveness.</p>
+              </div>
+
+              <div>
+                <h5 className="font-semibold text-slate-800 mb-1 text-sm">🔄 Overall Hiring Funnel</h5>
+                <p className="text-xs text-slate-600">Shows the hiring journey: Opportunities → Applications → Hires. Reveals conversion rates at each stage.</p>
+              </div>
+
+              <div>
+                <h5 className="font-semibold text-slate-800 mb-1 text-sm">📋 Top Hiring Employers</h5>
+                <p className="text-xs text-slate-600">Table ranking employers by hires, events, and engagement score. Identifies top partnership leaders.</p>
+              </div>
+            </div>
+
+            {/* Right Column - Predictions & Insights */}
+            <div className="space-y-4">
+              <h4 className="text-base font-semibold text-slate-800 mb-3">Predictions & Insights</h4>
+              
+              <div>
+                <h5 className="font-semibold text-slate-800 mb-2 text-sm">🔮 Predictive Insights</h5>
+                <ul className="list-disc list-inside space-y-1 text-xs text-slate-600 ml-3">
+                  <li><strong>High-Potential Matches:</strong> Alumni-employer connections with strong alignment scores</li>
+                  <li><strong>Hiring Forecast:</strong> Predicted hiring activity by program and employer for next quarter</li>
+                  <li><strong>Networking Opportunities:</strong> Recommended connections for mentorship and events</li>
+                  <li><strong>Partnership Strength:</strong> Forecasted partnership scores and trend indicators</li>
+                </ul>
+              </div>
+
+              <div>
+                <h5 className="font-semibold text-slate-800 mb-2 text-sm">📊 Key Insights</h5>
+                <ul className="list-disc list-inside space-y-1 text-xs text-slate-600 ml-3">
+                  <li>Technology, Healthcare, and Finance show highest engagement</li>
+                  <li>Employer participation patterns are stable across years</li>
+                  <li>Hiring conversion rates show improvement over time</li>
+                  <li>Top employers maintain multiple touchpoints (events, hires, feedback)</li>
+                </ul>
+              </div>
+
+              <div>
+                <h5 className="font-semibold text-slate-800 mb-2 text-sm">📈 Forecasts</h5>
+                <ul className="list-disc list-inside space-y-1 text-xs text-slate-600 ml-3">
+                  <li>Partnership engagement projected to continue growing</li>
+                  <li>Peak hiring periods typically in spring and fall</li>
+                  <li>High-engagement industries likely to maintain momentum</li>
+                  <li>Hiring conversion rates expected to improve with better alignment</li>
+                </ul>
+              </div>
+
+              <div className="bg-gradient-to-r from-sluBlue to-blue-700 rounded-lg p-4 text-white">
+                <h5 className="text-sm font-bold mb-2">💡 Recommendations</h5>
+                <ul className="list-disc list-inside space-y-1 text-xs text-blue-50">
+                  <li>Focus partnership development in high-engagement industries</li>
+                  <li>Recognize and expand relationships with top hiring employers</li>
+                  <li>Schedule career fairs during peak hiring seasons</li>
+                  <li>Use technical strength trends to refine curriculum</li>
+                  <li>Leverage employers with many SLU alumni for networking</li>
+                </ul>
+              </div>
+            </div>
+              </div>
+            </div>
+            )}
         </div>
+      </div>
+      
+      {/* Footer Section */}
+      <div className="container mx-auto px-4 py-8">
+        <GalleryFooter />
       </div>
     </div>
   );

@@ -83,8 +83,8 @@ const HeroSlider = ({ interval = 7000, children, images }) => {
   const prevSlide = () => goToSlide((current - 1 + slides.length) % slides.length);
 
   return (
-    <div className="relative w-full overflow-hidden rounded-3xl shadow-2xl border border-white/15 bg-black/5">
-      <div className="relative min-h-[420px] md:min-h-[500px]">
+    <div className="relative w-full h-full overflow-hidden rounded-3xl shadow-2xl border border-white/15 bg-black/5">
+      <div className="relative w-full h-full min-h-[280px] md:min-h-[320px]">
         {slides.map((slide, index) => (
           <div
             key={slide.src}
