@@ -340,7 +340,8 @@ export const transformAlumniNetworking = (events, alumniEngagement) => {
 // Load approved success stories from API
 export const loadApprovedSuccessStories = async () => {
   try {
-    const apiUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002'}/api/success-stories/approved`;
+    const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002').replace(/\/+$/, '');
+    const apiUrl = `${apiBase}/api/success-stories/approved`;
     console.log('Loading approved success stories from:', apiUrl);
     const response = await fetch(apiUrl);
     if (!response.ok) {
@@ -523,7 +524,8 @@ export const transformCareerSuccessStories = (alumniEmployment, students, employ
  */
 export const loadApprovedEmployerFeedback = async () => {
   try {
-    const apiUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002'}/api/employer-feedback/approved`;
+    const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002').replace(/\/+$/, '');
+    const apiUrl = `${apiBase}/api/employer-feedback/approved`;
     console.log('🔍 Loading approved employer feedback from API:', apiUrl);
     const response = await fetch(apiUrl);
     if (!response.ok) {

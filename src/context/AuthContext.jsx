@@ -1,6 +1,11 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002';
+// Normalize API base URL (remove trailing slash to prevent double slashes)
+const getApiBaseUrl = () => {
+  const url = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002';
+  return url.replace(/\/+$/, ''); // Remove trailing slashes
+};
+const API_BASE_URL = getApiBaseUrl();
 const AuthContext = createContext(null);
 const STORAGE_KEY = 'datanexus-auth';
 

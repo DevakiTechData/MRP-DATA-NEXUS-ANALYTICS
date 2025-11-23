@@ -273,7 +273,8 @@ const AlumniPortal = () => {
         student_key: user?.student_key || formData.eventApplication.student_key,
       };
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002'}/api/alumni/event-application`, {
+      const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002').replace(/\/+$/, '');
+      const response = await fetch(`${apiBase}/api/alumni/event-application`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -323,7 +324,8 @@ const AlumniPortal = () => {
         student_key: user?.student_key || formData.engagement.student_key,
       };
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002'}/api/alumni/engagement`, {
+      const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002').replace(/\/+$/, '');
+      const response = await fetch(`${apiBase}/api/alumni/engagement`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -454,7 +456,8 @@ const AlumniPortal = () => {
         student_key: user?.student_key || formData.successStory.student_key,
       };
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002'}/api/alumni/success-story`, {
+      const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002').replace(/\/+$/, '');
+      const response = await fetch(`${apiBase}/api/alumni/success-story`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -76,6 +76,8 @@ VITE_API_BASE_URL=https://zany-space-adventure-7vpjv4qvj7972wq5q-5002.app.github
 EOF
 ```
 
+> **Important:** Do NOT include a trailing slash (`/`) at the end of the URL. The code automatically handles URL normalization, but it's best practice to omit the trailing slash.
+
 ## Step 4: Start the Backend Server
 
 Open a terminal and run:

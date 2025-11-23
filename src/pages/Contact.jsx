@@ -63,7 +63,9 @@ const Contact = () => {
     }
 
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002';
+      // Normalize API base URL (remove trailing slash to prevent double slashes)
+      const rawUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002';
+      const API_BASE_URL = rawUrl.replace(/\/+$/, '');
       const response = await fetch(`${API_BASE_URL}/api/connect`, {
         method: 'POST',
         headers: {

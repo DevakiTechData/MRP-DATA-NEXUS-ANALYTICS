@@ -1459,20 +1459,6 @@ VITE_API_BASE_URL=http://localhost:5002
 
 ### 3. Start Servers
 
-**For GitHub Codespaces:**
-```bash
-# Terminal 1 – Express API
-cd datanexus-dashboard/server
-npm run dev
-# Codespaces will automatically forward the port - check the "Ports" tab
-
-# Terminal 2 – Vite frontend
-cd datanexus-dashboard
-npm run dev
-# Codespaces will automatically forward the port - check the "Ports" tab
-# Make sure .env has the correct backend forwarded URL
-```
-
 **For Local Development:**
 ```bash
 # Terminal 1 – Express API

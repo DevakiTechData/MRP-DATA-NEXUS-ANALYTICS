@@ -1,6 +1,11 @@
 // API service for managing requests (event applications, success stories, engagements)
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002';
+// Normalize API base URL (remove trailing slash to prevent double slashes)
+const getApiBaseUrl = () => {
+  const url = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002';
+  return url.replace(/\/+$/, ''); // Remove trailing slashes
+};
+const API_BASE = getApiBaseUrl();
 
 // Get auth token from localStorage
 const getAuthToken = () => {

@@ -1,4 +1,9 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002';
+// Normalize API base URL (remove trailing slash to prevent double slashes)
+const getApiBaseUrl = () => {
+  const url = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002';
+  return url.replace(/\/+$/, ''); // Remove trailing slashes
+};
+const API_BASE_URL = getApiBaseUrl();
 
 const handleResponse = async (response) => {
   const data = await response.json().catch(() => null);
