@@ -567,7 +567,13 @@ const authorizeRole = (...allowedRoles) => {
 };
 
 const app = express();
-app.use(cors());
+// CORS configuration - allow all origins (including Codespaces)
+app.use(cors({
+  origin: true, // Allow all origins
+  credentials: true, // Allow credentials (cookies, authorization headers)
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 app.use(express.json());
 
 app.get('/api/health', (req, res) => {
