@@ -3996,7 +3996,9 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Events inquiry API running on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Events inquiry API running on http://0.0.0.0:${PORT}`);
+  console.log(`Server accessible on http://localhost:${PORT}`);
+  console.log(`CORS enabled for all origins`);
 });
 
