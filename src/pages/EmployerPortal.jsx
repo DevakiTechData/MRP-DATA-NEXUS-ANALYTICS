@@ -427,10 +427,9 @@ const EmployerPortal = () => {
       if (formData.image) {
         const imageFormData = new FormData();
         imageFormData.append('image', formData.image);
-        imageFormData.append('category', 'employer-feedback');
         
         const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5002').replace(/\/+$/, '');
-        const uploadResponse = await fetch(`${apiBase}/api/admin/images`, {
+        const uploadResponse = await fetch(`${apiBase}/api/employer/feedback-image`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,

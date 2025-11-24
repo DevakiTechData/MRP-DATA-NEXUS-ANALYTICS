@@ -3767,6 +3767,40 @@ app.post('/api/admin/images', authenticateToken, authorizeRole('admin'), upload.
   }
 });
 
+// Employer feedback image uploads (locked to employer-feedback category)
+app.post('/api/employer/feedback-image', authenticateToken, authorizeRole('employer', 'admin'), upload.single('image'), (req, res) => {
+  try {
+    const category = 'employer-feedback';
+    const categoryInfo = getImageCategory(category);
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ error: 'Image file is required.' });
+    }
+
+    const originalName = file.originalname || 'upload';
+    const parsed = path.parse(originalName);
+    const safeBase = parsed.name.replace(/[^a-zA-Z0-9_-]/g, '_') || 'image';
+    const extension = parsed.ext || '.png';
+
+    let filename = `${safeBase}${extension}`;
+    const targetDir = categoryInfo.absolutePath;
+    let counter = 1;
+    while (fs.existsSync(path.join(targetDir, filename))) {
+      filename = `${safeBase}_${Date.now()}_${counter}${extension}`;
+      counter += 1;
+    }
+
+    fs.writeFileSync(path.join(targetDir, filename), file.buffer);
+
+    const fileInfo = listImageFiles(category).find((item) => item.filename === filename);
+    res.status(201).json({ message: 'Image uploaded successfully.', file: fileInfo });
+  } catch (error) {
+    console.error('Failed to upload employer feedback image', error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to upload image.' });
+  }
+});
+
 app.delete('/api/admin/images/:category/:filename', authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
     const { category, filename } = req.params;
