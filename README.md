@@ -32,6 +32,7 @@ DataNexus is Saint Louis University's analytics command center for alumni engage
 - [7. Security, Roles & Credentials](#7-security-roles--credentials)
 - [8. Update History](#8-update-history)
 - [9. Troubleshooting & FAQ](#9-troubleshooting--faq)
+- [10. Future Feature Roadmap (AI & ML)](#10-future-feature-roadmap-ai--ml)
 
 ---
 
@@ -96,6 +97,8 @@ DataNexus is Saint Louis University's analytics command center for alumni engage
 - **Home** (`/`) – Landing hero, mission statement, quick links to dashboards and community pages.
 
 ### 2.2 Dashboards
+
+> For an expanded, standalone reference of dashboard KPIs, visual layouts, and upkeep workflows, read [DASHBOARD_DOCUMENTATION.md](DASHBOARD_DOCUMENTATION.md).
 
 #### 2.2.1 Alumni Dashboard (`/alumni`)
 **Access:** Admin, Alumni roles
@@ -1559,6 +1562,19 @@ Seeded credentials live in `server/data/users.json` for local testing:
 | Engagement participation not showing in dashboards | Engagement data is stored in `fact_alumni_engagement.csv`. View it in Admin Console under "Alumni Engagement Facts" table. The dashboard metrics are calculated from this table. |
 | Location map showing "Unknown" | Check that `Dim_Students.csv` has `current_city` or `country_of_origin` fields populated. The location extraction tries multiple field names. |
 | Metrics not calculating correctly | Verify that CSV files are properly formatted and contain the expected columns. Check browser console for errors. Ensure `src/utils/metrics.js` functions are receiving data correctly. |
+
+---
+
+## 11. Future Feature Roadmap (AI & ML)
+
+| Theme | Description | Value to SLU |
+| ----- | ----------- | ------------ |
+| **AI Relationship Insights** | Extend the DataNexus Assistant with retrieval-augmented generation (RAG) so admins can ask conversational questions (e.g., 'Which employer cohorts show declining conversions?') and receive cited answers drawn from CSV data. | Gives leadership natural-language access to analytics, speeding up board briefings and operational triage. |
+| **Predictive Engagement Modeling** | Replace heuristic predictions with lightweight regression/gradient-boosted models that forecast alumni engagement scores, employer participation probability, and event attendance. | Helps prioritize outreach to at-risk cohorts and quantify partnership impact with confidence intervals. |
+| **Automated Success Signal Detection** | Use NLP + sentiment analysis on feedback and success stories to auto-tag technologies, competencies, and relationship strengths. Pair with CV tagging on gallery assets for a searchable 'relationship library.' | Accelerates marketing collateral creation and improves matching between employer needs and alumni skill sets. |
+| **Adaptive Engagement Journeys** | Explore reinforcement learning / bandit approaches that recommend next-best actions (invite to mentor, highlight program, schedule check-in) based on longitudinal response data. | Delivers personalized experiences that increase retention while capturing new learning signals for SLU. |
+
+> All AI/ML features will include governance guardrails: anonymization of personal data, opt-in consent, monitoring dashboards for model drift, and clear communication of prediction confidence.
 
 ---
 
