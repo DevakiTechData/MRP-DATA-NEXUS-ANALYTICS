@@ -1081,6 +1081,7 @@ app.post('/api/contact/alumni-record-update', (req, res) => {
       spouse_is_slu_graduate: (spouseIsSLUGraduate || '').trim(),
       has_child_at_slu: hasChildAtSLU ? '1' : '0',
       status: 'pending',
+      email: (userEmail || '').trim(),
     };
 
     records.push(updateRecord);
@@ -1098,7 +1099,7 @@ app.post('/api/contact/alumni-record-update', (req, res) => {
 app.post('/api/alumni/event-application', authenticateToken, authorizeRole('alumni', 'admin'), (req, res) => {
   try {
     const { event_key, full_name, email, phone, program, graduation_year, interest_reason, previous_attendance, student_key } = req.body ?? {};
-    const { student_key: tokenStudentKey, role } = req.user || {};
+    const { student_key: tokenStudentKey, role, email: userEmail } = req.user || {};
 
     // Use student_key from body, token, or require it
     const targetStudentKey = student_key || tokenStudentKey;
@@ -1576,7 +1577,7 @@ app.get('/api/alumni/my-colleagues', authenticateToken, authorizeRole('alumni', 
 app.post('/api/alumni/success-story', authenticateToken, authorizeRole('alumni', 'admin'), (req, res) => {
   try {
     const { full_name, program, graduation_year, current_role, employer_name, story_title, story_content, achievements, photo_url, student_key } = req.body ?? {};
-    const { student_key: tokenStudentKey, role } = req.user || {};
+    const { student_key: tokenStudentKey, role, email: userEmail } = req.user || {};
 
     // Use student_key from body, token, or require it
     const targetStudentKey = student_key || tokenStudentKey;
@@ -1589,6 +1590,23 @@ app.post('/api/alumni/success-story', authenticateToken, authorizeRole('alumni',
     const storiesPath = path.join(DATA_DIR, 'success_stories.csv');
     ensureDataDirectory();
     
+    const requiredColumns = [
+      'story_id',
+      'student_key',
+      'full_name',
+      'program',
+      'graduation_year',
+      'current_role',
+      'employer_name',
+      'story_title',
+      'story_content',
+      'achievements',
+      'photo_url',
+      'submitted_at',
+      'status',
+      'email',
+    ];
+
     let stories = [];
     if (fs.existsSync(storiesPath)) {
       const csvContent = fs.readFileSync(storiesPath, 'utf8');
@@ -1612,7 +1630,18 @@ app.post('/api/alumni/success-story', authenticateToken, authorizeRole('alumni',
     };
 
     stories.push(story);
-    const csv = Papa.unparse(stories, { header: true });
+
+    stories = stories.map((item) => {
+      const normalized = { ...item };
+      requiredColumns.forEach((col) => {
+        if (normalized[col] === undefined) {
+          normalized[col] = '';
+        }
+      });
+      return normalized;
+    });
+
+    const csv = Papa.unparse(stories, { columns: requiredColumns });
     fs.writeFileSync(storiesPath, csv, 'utf8');
 
     res.json({ message: 'Success story submitted successfully. Admin will review and approve it.' });
@@ -2639,8 +2668,54 @@ app.get('/api/alumni/my-submissions', authenticateToken, authorizeRole('alumni',
       }
       const csvContent = fs.readFileSync(storiesPath, 'utf8');
       const stories = Papa.parse(csvContent, { header: true, skipEmptyLines: true }).data;
-      // Filter by student_key
-      const myStories = stories.filter(story => String(story.student_key) === String(targetStudentKey));
+      let myStories = stories.filter(story => String(story.student_key) === String(targetStudentKey));
+
+      if (myStories.length === 0) {
+        try {
+          const { rows: students } = loadTableData('students');
+          const student = students.find(s => String(s.student_key) === String(targetStudentKey));
+          if (student) {
+            const studentEmail = (student.email || '').toLowerCase().trim();
+            const studentFullName = `${(student.first_name || '').trim()} ${(student.last_name || '').trim()}`.toLowerCase().trim();
+            myStories = stories.filter(story => {
+              const storyEmail = (story.email || '').toLowerCase().trim();
+              const storyFullName = (story.full_name || '').toLowerCase().trim();
+              const noStudentKey = !story.student_key || story.student_key === '';
+              const emailMatch = studentEmail && storyEmail && storyEmail === studentEmail;
+              const nameMatch = studentFullName && storyFullName === studentFullName;
+              return noStudentKey && (emailMatch || nameMatch);
+            });
+
+            if (myStories.length > 0) {
+              let updated = false;
+              const requiredColumns = ['story_id', 'student_key', 'full_name', 'program', 'graduation_year', 'current_role', 'employer_name', 'story_title', 'story_content', 'achievements', 'photo_url', 'submitted_at', 'status', 'email'];
+              stories.forEach(story => {
+                const storyEmail = (story.email || '').toLowerCase().trim();
+                const storyFullName = (story.full_name || '').toLowerCase().trim();
+                if ((!story.student_key || story.student_key === '') && ((studentEmail && storyEmail === studentEmail) || (studentFullName && storyFullName === studentFullName))) {
+                  story.student_key = targetStudentKey.toString();
+                  if (studentEmail && !story.email) {
+                    story.email = studentEmail;
+                  }
+                  updated = true;
+                }
+                requiredColumns.forEach(col => {
+                  if (story[col] === undefined) {
+                    story[col] = '';
+                  }
+                });
+              });
+              if (updated) {
+                const updatedCsv = Papa.unparse(stories, { columns: requiredColumns });
+                fs.writeFileSync(storiesPath, updatedCsv, 'utf8');
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error trying success story fallback:', error);
+        }
+      }
+
       return res.json({ submissions: myStories });
     }
     
@@ -2753,7 +2828,53 @@ app.get('/api/alumni/my-submissions', authenticateToken, authorizeRole('alumni',
     if (fs.existsSync(storiesPath)) {
       const csvContent = fs.readFileSync(storiesPath, 'utf8');
       const stories = Papa.parse(csvContent, { header: true, skipEmptyLines: true }).data;
-      result.successStories = stories.filter(story => String(story.student_key) === String(targetStudentKey));
+      let myStories = stories.filter(story => String(story.student_key) === String(targetStudentKey));
+
+      if (myStories.length === 0) {
+        try {
+          const { rows: students } = loadTableData('students');
+          const student = students.find(s => String(s.student_key) === String(targetStudentKey));
+          if (student) {
+            const studentEmail = (student.email || '').toLowerCase().trim();
+            const studentFullName = `${(student.first_name || '').trim()} ${(student.last_name || '').trim()}`.toLowerCase().trim();
+            myStories = stories.filter(story => {
+              const storyEmail = (story.email || '').toLowerCase().trim();
+              const storyFullName = (story.full_name || '').toLowerCase().trim();
+              const noStudentKey = !story.student_key || story.student_key === '';
+              return noStudentKey && ((studentEmail && storyEmail === studentEmail) || (studentFullName && storyFullName === studentFullName));
+            });
+
+            if (myStories.length > 0) {
+              let updated = false;
+              const requiredColumns = ['story_id', 'student_key', 'full_name', 'program', 'graduation_year', 'current_role', 'employer_name', 'story_title', 'story_content', 'achievements', 'photo_url', 'submitted_at', 'status', 'email'];
+              stories.forEach(story => {
+                const storyEmail = (story.email || '').toLowerCase().trim();
+                const storyFullName = (story.full_name || '').toLowerCase().trim();
+                if ((!story.student_key || story.student_key === '') && ((studentEmail && storyEmail === studentEmail) || (studentFullName && storyFullName === studentFullName))) {
+                  story.student_key = targetStudentKey.toString();
+                  if (studentEmail && !story.email) {
+                    story.email = studentEmail;
+                  }
+                  updated = true;
+                }
+                requiredColumns.forEach(col => {
+                  if (story[col] === undefined) {
+                    story[col] = '';
+                  }
+                });
+              });
+              if (updated) {
+                const updatedCsv = Papa.unparse(stories, { columns: requiredColumns });
+                fs.writeFileSync(storiesPath, updatedCsv, 'utf8');
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error trying success story fallback:', error);
+        }
+      }
+
+      result.successStories = myStories;
     }
     
     if (fs.existsSync(feedbackPath)) {
