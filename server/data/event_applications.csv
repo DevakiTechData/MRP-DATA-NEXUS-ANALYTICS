@@ -1,8 +1,2 @@
 application_id,student_key,event_key,full_name,email,phone,program,graduation_year,interest_reason,previous_attendance,submitted_at,status
 1,,1113,devaki,bathalapalli.devaki@gmail.com,3142977875,is,2025,for more network and job,1,2025-11-18T19:19:08.197Z,approved
-2,,1115,DEvaki Bathalapalli,bathalapalli.devaki@gmail.com,3142977875,is,,network,0,2025-11-18T19:28:44.786Z,approved
-3,1,1113,First1 Last1,student1@slu.edu,,,2021,yes,1,2025-11-19T20:00:52.275Z,approved
-4,1,1140,First1 Last1,student1@slu.edu,,,2021,yes,1,2025-11-19T20:05:23.499Z,approved
-5,1,1114,First1 Last1,student1@slu.edu,,IS,2021,wanted,1,2025-11-20T04:46:33.388Z,approved
-6,,1140,dd,dd@gmail.com,,,,dd,0,2025-11-20T21:52:40.702Z,pending
-7,,1140,ddffgg,dd@gmail.com,,,,ftfrtytuh,0,2025-11-21T03:52:19.144Z,pending
