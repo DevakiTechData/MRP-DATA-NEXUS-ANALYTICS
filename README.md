@@ -38,6 +38,8 @@ DataNexus is Saint Louis University's analytics command center for alumni engage
 
 ## 1. Application Architecture
 
+> For stack-level details (framework versions, security posture, dev workflows), see [TECHNOLOGY_DOCUMENTATION.md](TECHNOLOGY_DOCUMENTATION.md).
+
 ### 1.1 High-Level Stack
 | Layer | Description |
 | ----- | ----------- |
