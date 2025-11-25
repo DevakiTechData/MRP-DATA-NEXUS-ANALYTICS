@@ -1,6 +1,6 @@
 # DataNexus Dashboard – Study & Presentation Guide
 
-Prepared for: **Shiva**  
+Prepared for: All team 
 Date: November 24, 2025
 
 This guide converts the entire project into quick-reference notes, visual mental models, and question banks so you can confidently explain the system to a professor, interviewer, or stakeholder.
